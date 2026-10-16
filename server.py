@@ -118,9 +118,12 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/bootstrap':
                 ip_info=self.client_ip_info()
                 return self.response(200,{'setup_required':not store.has_admin(),'registration_open':self.server.registration,'disclaimer':DISCLAIMER,'disclaimer_version':DISCLAIMER_VERSION,'developer':'安稳','version':VERSION,'build_date':BUILD_DATE,'client_ip':ip_info['ip'],'ip_proto':ip_info['proto'],'country':ip_info['country'],'recovery_questions':[{'id':key,'label':label} for key,label in QUESTIONS]})
-            static={'/':('index.html','text/html; charset=utf-8'),'/app.js':('app.js','text/javascript; charset=utf-8'),'/cat-pointer.js':('cat-pointer.js','text/javascript; charset=utf-8'),'/style.css':('style.css','text/css; charset=utf-8'),'/mascot.svg':('mascot.svg','image/svg+xml'),'/favicon.ico':('mascot.svg','image/svg+xml')}
+            static={'/':('index.html','text/html; charset=utf-8'),'/app.js':('app.js','text/javascript; charset=utf-8'),'/theme.js':('theme.js','text/javascript; charset=utf-8'),'/cat-pointer.js':('cat-pointer.js','text/javascript; charset=utf-8'),'/style.css':('style.css','text/css; charset=utf-8'),'/mascot.svg':('mascot.svg','image/svg+xml'),'/favicon.ico':('mascot.svg','image/svg+xml')}
             if path in static:
                 name,content_type=static[path];return self.response(200,(ROOT/'web'/name).read_bytes(),content_type)
+            if path=='/api/account/avatar':
+                user=self.user();image=store.avatar(user['id'])
+                return self.response(200 if image else 204,image or b'','image/png')
             if path=='/api/session':
                 user=self.user();return self.response(200,{'user':store.user(user['id']),'csrf':user['csrf']})
             if path=='/api/updates':
@@ -134,7 +137,10 @@ class Handler(BaseHTTPRequestHandler):
                 token,kind=match.groups();cal=store.calendar_for_token(token,kind)
                 if not cal:raise APIError(404,'订阅链接不存在、已失效或课表尚未生成')
                 etag='"'+cal['etag']+'"';unchanged=self.headers.get('If-None-Match')==etag
-                if method=='GET':store.log(cal['user_id'],kind,'CALENDAR_NOT_MODIFIED' if unchanged else 'CALENDAR_DELIVERED','日历客户端检查订阅，内容未变化' if unchanged else '已向日历客户端提供最新成功版本',category='delivery')
+                if method=='GET':
+                    message='日历客户端检查订阅，内容未变化' if unchanged else '已向日历客户端提供最新成功版本'
+                    if store.debug_source_ip(cal['user_id']):message+=' · 源 IP：'+self.client_ip_info()['ip']
+                    store.log(cal['user_id'],kind,'CALENDAR_NOT_MODIFIED' if unchanged else 'CALENDAR_DELIVERED',message,category='delivery')
                 return self.response(304 if unchanged else 200,b'' if unchanged else cal['ics'],'text/calendar; charset=utf-8',{'ETag':etag,'Cache-Control':'private, max-age=300','Content-Disposition':'inline; filename="'+kind+'.ics"'})
         else:
             self.check_origin()
@@ -161,6 +167,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(token,str) or not token:raise APIError(403,'请填写一次性管理员设置码')
                 return self.session_response(store.create_user(data.get('username',''),data.get('password',''),'admin',token))
             user=self.user(mutating=True)
+            if path=='/api/debug' and method=='PUT':
+                store.set_debug_source_ip(user['id'],data.get('show_source_ip'))
+                return self.response(200,{'ok':True})
+            if path=='/api/account/avatar' and method=='PUT':
+                if 'image' not in data:raise APIError(400,'请选择头像图片')
+                return self.response(200,{'user':store.save_avatar(user['id'],data['image'])})
             platform_match=re.fullmatch(r'/api/platforms/(app|jw|lab)/(test|login)',path)
             if platform_match and method=='POST':
                 platform,action=platform_match.groups()

@@ -59,6 +59,55 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(Path(self.temp.name).resolve().parent,(Path(__file__).resolve().parents[1]/'.test-data').resolve())
         self.temp.cleanup()
     def sync(self,*kinds,initialize=False):self.manager.submit(self.uid,list(kinds),initialize).result(timeout=5)
+    def shared_plan(self,mode='app',teaching_interval=60,lab_interval=60,lab_enabled=True):
+        self.store.update_settings(self.uid,{'mode':mode,'app_token':'shared-existing-token',
+            'teaching':{'enabled':True,'interval_minutes':teaching_interval},
+            'lab':{'enabled':lab_enabled,'interval_minutes':lab_interval}})
+    def test_same_interval_app_sync_reuses_token_and_logs_in_cas_once(self):
+        self.shared_plan();self.sync('teaching')
+        self.assertEqual(self.fake.calls,['app_fetch','lab_fetch'])
+        self.assertEqual(self.fake.credential_inputs[0]['token'],'shared-existing-token')
+        states=self.store.dashboard(self.uid,'http://localhost')['states']
+        self.assertEqual(states['teaching']['next_run'],states['lab']['next_run'])
+        self.assertEqual(states['teaching']['state'],'ok');self.assertEqual(states['lab']['state'],'ok')
+        self.assertTrue(any(r['event']=='SHARED_SYNC_STARTED' for r in self.store.dashboard(self.uid,'http://localhost')['logs']))
+    def test_shared_scheduler_heals_staggered_due_dates_without_second_login(self):
+        self.shared_plan()
+        with self.store.db() as c:c.execute("UPDATE sync_state SET next_run=? WHERE user_id=? AND kind='lab'",('2020-01-01T00:00:00+00:00',self.uid))
+        self.manager.schedule_due();self.manager.pool.shutdown(wait=True)
+        self.assertEqual(self.fake.calls,['app_fetch','lab_fetch'])
+        self.manager.schedule_due()
+        self.assertEqual(self.fake.calls,['app_fetch','lab_fetch'])
+        states=self.store.dashboard(self.uid,'http://localhost')['states']
+        self.assertEqual(states['teaching']['next_run'],states['lab']['next_run'])
+    def test_different_intervals_and_disabled_plans_stay_independent(self):
+        for ti,li,enabled in [(30,60,True),(60,60,False)]:
+            with self.subTest(teaching=ti,lab=li,enabled=enabled):
+                self.fake.calls=[];self.shared_plan(teaching_interval=ti,lab_interval=li,lab_enabled=enabled)
+                self.sync('teaching');self.assertEqual(self.fake.calls,['app_fetch'])
+    def test_jw_mode_remains_independent_with_matching_intervals(self):
+        self.shared_plan(mode='jw');self.sync('lab')
+        self.assertEqual(self.fake.calls,['lab_fetch'])
+    def test_auto_mode_only_groups_while_token_is_usable(self):
+        self.shared_plan(mode='auto')
+        self.store.save_teacher_cache(self.uid,[{'kcdm':'cached','teacher':'教师'}])
+        self.sync('lab');self.assertEqual(self.fake.calls,['app_fetch','lab_fetch'])
+        self.fake.calls=[];self.store.save_secret(self.uid,{'token_invalid':True})
+        self.sync('lab');self.assertEqual(self.fake.calls,['lab_fetch'])
+    def test_shared_auth_failure_does_not_retry_and_keeps_other_calendar(self):
+        self.shared_plan();self.sync('teaching');previous=self.store.calendar(self.uid,'lab')['ics']
+        self.fake.calls=[];self.fake.lab_error='HUMAN_CAPTCHA_REQUIRED';self.sync('lab')
+        self.assertEqual(self.fake.calls,['app_fetch','lab_fetch'])
+        self.assertEqual(self.store.calendar(self.uid,'lab')['ics'],previous)
+        states=self.store.dashboard(self.uid,'http://localhost')['states']
+        self.assertEqual(states['lab']['state'],'error');self.assertEqual(states['teaching']['state'],'ok')
+        self.assertEqual(states['teaching']['next_run'],states['lab']['next_run'])
+    def test_explicit_app_relogin_never_expands_a_single_source_task(self):
+        self.shared_plan();self.sync('teaching',initialize=True)
+        self.assertEqual(self.fake.calls,['app_init','app_fetch'])
+    def test_unusable_token_does_not_expand_single_source_task(self):
+        self.shared_plan();self.store.save_secret(self.uid,{'token':'','token_invalid':True})
+        self.sync('lab');self.assertEqual(self.fake.calls,['lab_fetch'])
     def test_default_school_does_not_reset_existing_credentials_or_links(self):
         self.store.save_secret(self.uid,{'token':'existing-test-token'})
         links=self.store.links(self.uid,'http://localhost');self.sync('lab')

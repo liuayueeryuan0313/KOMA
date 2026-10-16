@@ -42,7 +42,7 @@ jobs:
           set -euo pipefail
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           VERSION="${RELEASE_TAG#v}"
-          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:$VERSION"
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:$VERSION-$ARCHITECTURE"
           LOCAL_IMAGE="koma:$VERSION"
           if [ "$ARCHITECTURE" = arm64 ]; then LOCAL_IMAGE="$LOCAL_IMAGE-arm64"; fi
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"

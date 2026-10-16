@@ -54,6 +54,7 @@ class Store:
             connection.executescript('''
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,username TEXT NOT NULL UNIQUE COLLATE NOCASE,password_hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('admin','user')),disabled INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,consent_version TEXT NOT NULL,student_name TEXT NOT NULL DEFAULT '');
+            CREATE TABLE IF NOT EXISTS avatars(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,image BLOB NOT NULL,version TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS account_recovery(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,questions TEXT NOT NULL,answer_hashes TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS settings(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,secret TEXT NOT NULL,config TEXT NOT NULL,mode TEXT NOT NULL DEFAULT 'auto');
             CREATE TABLE IF NOT EXISTS sync_state(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('teaching','lab')),enabled INTEGER NOT NULL DEFAULT 0,interval_minutes INTEGER NOT NULL DEFAULT 360,next_run TEXT,last_attempt TEXT,last_success TEXT,state TEXT NOT NULL DEFAULT 'idle',active_source TEXT,warning TEXT NOT NULL DEFAULT '',identity_name TEXT NOT NULL DEFAULT '',identity_id TEXT NOT NULL DEFAULT '',PRIMARY KEY(user_id,kind));
@@ -113,8 +114,28 @@ class Store:
         return self.user(identifier)
     def user(self,identifier):
         with self.db() as c:
-            row=c.execute('SELECT id,username,role,disabled,created_at,student_name FROM users WHERE id=?',(identifier,)).fetchone()
+            row=c.execute('SELECT users.id,username,role,disabled,created_at,student_name,avatars.version AS avatar_version FROM users LEFT JOIN avatars ON avatars.user_id=users.id WHERE users.id=?',(identifier,)).fetchone()
             return dict(row) if row else None
+    def debug_source_ip(self,user_id):
+        with self.db() as c:row=c.execute('SELECT config FROM settings WHERE user_id=?',(user_id,)).fetchone()
+        return bool(json.loads(row['config']).get('debug_source_ip',False))
+    def set_debug_source_ip(self,user_id,enabled):
+        if not isinstance(enabled,bool):raise ValueError('请选择有效的调试选项')
+        with self.db() as c:
+            c.execute('BEGIN IMMEDIATE')
+            row=c.execute('SELECT config FROM settings WHERE user_id=?',(user_id,)).fetchone()
+            config=json.loads(row['config']);config['debug_source_ip']=enabled
+            c.execute('UPDATE settings SET config=? WHERE user_id=?',(json_text(config),user_id))
+    def avatar(self,user_id):
+        with self.db() as c:row=c.execute('SELECT image FROM avatars WHERE user_id=?',(user_id,)).fetchone()
+        return bytes(row['image']) if row else None
+    def save_avatar(self,user_id,value):
+        from avatars import decode_avatar
+        image=decode_avatar(value) if value is not None else None
+        with self.db() as c:
+            if image is None:c.execute('DELETE FROM avatars WHERE user_id=?',(user_id,))
+            else:c.execute('INSERT OR REPLACE INTO avatars VALUES(?,?,?)',(user_id,image,hashlib.sha256(image).hexdigest()))
+        return self.user(user_id)
     def login(self,username,password):
         with self.db() as c:row=c.execute('SELECT * FROM users WHERE username=?',(username,)).fetchone()
         # Run the same work for unknown accounts to avoid a cheap timing distinction.

@@ -63,8 +63,19 @@ class SyncManager:
     def start(self):self.scheduler.start()
     def busy(self,user_id):
         with self.lock:return user_id in self.pending
+    def shared_interval(self,user_id):
+        """Group only valid App-token + CAS plans; never authorizes an App login."""
+        settings=self.store.settings(user_id);credentials=settings['credentials']
+        if settings['mode'] not in ('app','auto') or not credentials.get('token') or credentials.get('token_invalid'):return None
+        with self.store.db() as c:
+            plans={row['kind']:dict(row) for row in c.execute('SELECT kind,enabled,interval_minutes FROM sync_state WHERE user_id=?',(user_id,))}
+        teaching=plans.get('teaching',{});lab=plans.get('lab',{})
+        if teaching.get('enabled') and lab.get('enabled') and teaching.get('interval_minutes')==lab.get('interval_minutes'):
+            return teaching['interval_minutes']
+        return None
     def submit(self,user_id,kinds,initialize_app=False):
         if not kinds or any(k not in ('teaching','lab') for k in kinds):raise ValueError('请选择教学课表或实验课表')
+        if not initialize_app and self.shared_interval(user_id) is not None:kinds=('teaching','lab')
         with self.lock:
             if user_id in self.pending:raise ValueError('已有同步任务，请等待完成')
             self.pending.add(user_id)
@@ -137,10 +148,10 @@ class SyncManager:
         for user_id,kinds in grouped.items():
             try:self.submit(user_id,kinds)
             except ValueError:pass
-    def _finish(self,user_id,kind,success=False,source=None,warning='',identity=None):
+    def _finish(self,user_id,kind,success=False,source=None,warning='',identity=None,schedule_at=None,schedule_interval=None):
         with self.store.db() as c:
             plan=c.execute('SELECT enabled,interval_minutes FROM sync_state WHERE user_id=? AND kind=?',(user_id,kind)).fetchone()
-            next_run=later(plan['interval_minutes']) if plan['enabled'] else None
+            next_run=(schedule_at if schedule_at and plan['interval_minutes']==schedule_interval else later(plan['interval_minutes'])) if plan['enabled'] else None
             state=('warning' if warning else 'ok') if success else 'error'
             if success:
                 name=str((identity or {}).get('name') or '').strip()[:100];student_id=str((identity or {}).get('studentId') or '')[:40]
@@ -217,6 +228,9 @@ class SyncManager:
             c.execute('BEGIN IMMEDIATE');rebuild(c,user_id,config)
     def _job(self,user_id,kinds,initialize_app):
         try:
+            interval=self.shared_interval(user_id) if not initialize_app and set(kinds)=={'teaching','lab'} else None
+            schedule_at=later(interval) if interval is not None else None
+            if schedule_at:self.store.log(user_id,'teaching','SHARED_SYNC_STARTED','教学与实验合并同步：复用 App token，实验 CAS 仅登录一次；不会自动重新登录 App','info')
             for kind in kinds:
                 user=self.store.user(user_id)
                 if not user or user['disabled']:break
@@ -228,19 +242,19 @@ class SyncManager:
                     if not normalized['occurrences']:raise SourceError('EMPTY_TIMETABLE')
                     ics,metrics=compile_calendar(normalized,config);metrics['term']=snapshot['xnxq']
                     self.store.put_calendar(user_id,kind,snapshot,normalized,ics,metrics)
-                    self._finish(user_id,kind,True,source,warning,identity)
+                    self._finish(user_id,kind,True,source,warning,identity,schedule_at=schedule_at,schedule_interval=interval)
                     self.store.log(user_id,kind,'SYNC_SUCCESS',f"同步完成，共{metrics['occurrences']}课次"+('；当前使用教务故障转移' if warning else ''),'warning' if warning else 'info')
                     published=self.store.calendar(user_id,'combined')
                     if published and json.loads(published['metrics']).get('conflicts'):
                         self.store.log(user_id,kind,'MANUAL_CONFLICT','学校安排有变更，已保留手动修改，请在课表中核对','warning')
                 except SourceError as error:
-                    self._finish(user_id,kind,warning=str(error));self.store.log(user_id,kind,error.code,str(error),'error')
+                    self._finish(user_id,kind,warning=str(error),schedule_at=schedule_at,schedule_interval=interval);self.store.log(user_id,kind,error.code,str(error),'error')
                 except (ValueError,KeyError,TypeError):
                     message='课表字段、日期或节次校验未通过，已保留最近成功版本'
-                    self._finish(user_id,kind,warning=message);self.store.log(user_id,kind,'DATA_INVALID',message,'error')
+                    self._finish(user_id,kind,warning=message,schedule_at=schedule_at,schedule_interval=interval);self.store.log(user_id,kind,'DATA_INVALID',message,'error')
                 except Exception:
                     message='同步任务未完成，已保留最近成功版本；请查看服务运行状态'
-                    self._finish(user_id,kind,warning=message);self.store.log(user_id,kind,'INTERNAL_ERROR',message,'error')
+                    self._finish(user_id,kind,warning=message,schedule_at=schedule_at,schedule_interval=interval);self.store.log(user_id,kind,'INTERNAL_ERROR',message,'error')
         finally:
             with self.lock:self.pending.discard(user_id)
     def close(self):self.stopped.set();self.pool.shutdown(wait=True,cancel_futures=True)
