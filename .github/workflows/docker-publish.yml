@@ -10,6 +10,12 @@ on:
     branches:
       - 'main'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing version tag to publish (leave empty for main/latest)'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -23,6 +29,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -66,10 +74,10 @@ jobs:
         with:
           images: ${{ steps.image-targets.outputs.images }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.event_name == 'release' }}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.event_name == 'release' || inputs.release_tag != '' }}
+            type=semver,pattern={{version}},value=${{ inputs.release_tag || github.ref_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.release_tag || github.ref_name }}
+            type=semver,pattern={{major}},value=${{ inputs.release_tag || github.ref_name }}
             type=ref,event=tag
 
       - name: Record application version and image build date
