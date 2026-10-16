@@ -23,7 +23,7 @@
 
 ## 截图
 
-按照 [截图插入说明](images/README.md) 上传图片，再取消主 README 中对应图片的注释。可自行选择展示哪些界面，不需要一次全部补齐。
+主 README 已附 8 张独立演示环境截图，均使用虚构数据与不可用的示例订阅地址。按照 [截图维护说明](images/README.md) 替换图片即可；保持文件名不变时，无需修改引用。
 
 ## 仓库信息建议
 
@@ -59,3 +59,4 @@ koma-docker-v0.3.0-linux-arm64.sha256.txt
 本文只提供上传准备，不会自动创建仓库、推送提交、发布 Release 或改变仓库可见性。
 
 参考：[GitHub 关于 README](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes)。
+

@@ -85,55 +85,47 @@ App、实验及 CAS 的厂商归属包含接口特征推断，应以目标学校
 
 ## 界面预览
 
-本节预留 8 处截图位置，图片统一放入 `docs/images/`。按 [截图插入说明](docs/images/README.md) 补充图片即可；未添加图片时，注释中的链接不会显示为破图。
+以下截图来自 v0.3.0 的独立演示环境，姓名、学号、课程、教室和同步记录均为虚构示例；订阅链接是不可用的示例地址。图片统一存放在 `docs/images/`，可按 [截图替换说明](docs/images/README.md) 更新。
 
 ### 主界面与课表
 
 我的课间展示教学与实验状态，课表页按教学周查看课程安排。
 
-<!-- SCREENSHOT:overview
-![我的课间：教学与实验同步状态](docs/images/overview.png)
--->
+<!-- SCREENSHOT:overview -->
+![我的课间：教学与实验同步状态](docs/images/overview.jpg)
 
-<!-- SCREENSHOT:timetable
-![课表一览：按教学周查看课程](docs/images/timetable.png)
--->
+<!-- SCREENSHOT:timetable -->
+![课表一览：按教学周查看课程](docs/images/timetable.jpg)
 
 ### 订阅与学校配置
 
 订阅页区分 ICS 与 CalDAV；学校配置页统一管理学校、教学来源及实验接入。
 
-<!-- SCREENSHOT:subscriptions
-![日历订阅：聚合、教学与实验](docs/images/subscriptions.png)
--->
+<!-- SCREENSHOT:subscriptions -->
+![日历订阅：聚合、教学与实验](docs/images/subscriptions.jpg)
 
-<!-- SCREENSHOT:school-settings
-![学校与平台：内置学校及自定义接入](docs/images/school-settings.png)
--->
+<!-- SCREENSHOT:school-settings -->
+![学校与平台：内置学校及自定义接入](docs/images/school-settings.jpg)
 
 ### 同步记录与用户管理
 
 学校拉取与客户端访问分别记录，管理员可管理用户权限和停用状态。
 
-<!-- SCREENSHOT:logs
-![同步记录：学校拉取、转换与订阅访问](docs/images/logs.png)
--->
+<!-- SCREENSHOT:logs -->
+![同步记录：学校拉取、转换与订阅访问](docs/images/logs.jpg)
 
-<!-- SCREENSHOT:admin
-![用户管理：账户权限与状态](docs/images/admin.png)
--->
+<!-- SCREENSHOT:admin -->
+![用户管理：账户权限与状态](docs/images/admin.jpg)
 
 ### 移动端与关于
 
 移动端提供纵向课表与平台配置布局；关于页包含项目信息和联系方式。
 
-<!-- SCREENSHOT:mobile
-![移动端界面](docs/images/mobile.png)
--->
+<!-- SCREENSHOT:mobile -->
+<img src="docs/images/mobile.jpg" alt="390 像素宽度下的移动端课表界面" width="360">
 
-<!-- SCREENSHOT:about
-![关于课间：项目与开发者信息](docs/images/about.png)
--->
+<!-- SCREENSHOT:about -->
+![关于课间：项目与开发者信息](docs/images/about.jpg)
 
 ## 快速部署
 

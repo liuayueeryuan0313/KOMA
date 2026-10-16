@@ -1,79 +1,44 @@
-# README 截图插入说明
+# README 截图维护说明
 
-主 README 预留了 8 处图片位置，使用 HTML 注释隐藏图片语法。因此没有上传图片时，不会显示破图。
+主 README 已插入 8 张 v0.3.0 实际界面截图。它们来自独立演示环境，所有学生信息、课表与同步记录均为虚构数据；订阅地址使用 `calendar.example.com`，不能读取真实课表。
 
-## 1. 准备图片
+## 截图列表
 
-建议使用 PNG；使用 JPG 或 WebP 时，把主 README 中对应扩展名一起修改。文件名使用英文小写与短横线，避免空格和复杂路径。
-
-| 位置标记 | 默认文件名 | 建议展示内容 |
+| 位置标记 | 文件 | 内容 |
 | --- | --- | --- |
-| `SCREENSHOT:overview` | `overview.png` | 我的课间：教学与实验状态、上次/下次学校同步 |
-| `SCREENSHOT:timetable` | `timetable.png` | 课表一览：课程、教室、实验标记与教学周 |
-| `SCREENSHOT:subscriptions` | `subscriptions.png` | ICS / CalDAV 标签、聚合订阅优先排序 |
-| `SCREENSHOT:school-settings` | `school-settings.png` | 学校下拉框、自定义参数、适用厂商说明 |
-| `SCREENSHOT:logs` | `logs.png` | 学校拉取与客户端订阅访问的分类 |
-| `SCREENSHOT:admin` | `admin.png` | 用户权限组与状态管理 |
-| `SCREENSHOT:mobile` | `mobile.png` | 手机宽度下的实际界面 |
-| `SCREENSHOT:about` | `about.png` | 项目、开发者、GitHub 与 Telegram |
+| `SCREENSHOT:overview` | `overview.jpg` | 首页、教学与实验同步状态、纸猫 |
+| `SCREENSHOT:timetable` | `timetable.jpg` | 按教学周查看课程，区分教学与实验 |
+| `SCREENSHOT:subscriptions` | `subscriptions.jpg` | 聚合、教学、实验订阅及手机导入说明 |
+| `SCREENSHOT:school-settings` | `school-settings.jpg` | 自定义学校与三平台兼容说明 |
+| `SCREENSHOT:logs` | `logs.jpg` | 学校拉取记录 |
+| `SCREENSHOT:admin` | `admin.jpg` | 管理员与普通用户权限 |
+| `SCREENSHOT:mobile` | `mobile.jpg` | 390×844 视口的手机课表 |
+| `SCREENSHOT:about` | `about.jpg` | 项目介绍与开发者联系方式 |
 
-桌面截图建议宽约 1200–1600 像素；手机截图保留设备比例。尺寸只是排版建议，不是上传限制。图片应清楚、文字可读，避免把很长的整页缩成一张难以阅读的图。
+## 替换图片
 
-## 2. 上传图片
+最方便的方式是保持文件名不变，替换本目录中的对应图片并提交。GitHub 中可进入此目录，选择“Add file → Upload files”上传。
 
-把图片放到仓库 `docs/images/`，与本说明同一目录。可以本地复制后提交，也可以在 GitHub 打开该目录后选择“Add file → Upload files”。
-
-不要把电脑上的 `C:/Users/...` 路径写进 README；其他人无法读取你的本地文件。使用相对路径，例如 `docs/images/overview.png`。
-
-## 3. 启用对应图片
-
-在根目录 `README.md` 搜索对应标记，例如 `SCREENSHOT:overview`。
-
-原内容：
+更换文件名或格式时，需要同时修改根目录 README 的引用。使用相对路径，例如：
 
 ```markdown
-<!-- SCREENSHOT:overview
-![我的课间：教学与实验同步状态](docs/images/overview.png)
--->
+![我的课间](docs/images/overview.jpg)
 ```
 
-上传图片后，删除第一行与最后一行，保留：
+路径和文件名区分大小写。不要使用自己电脑上的绝对路径。
 
-```markdown
-![我的课间：教学与实验同步状态](docs/images/overview.png)
-```
+每张图片前面的 `<!-- SCREENSHOT:... -->` 仅用于快速定位，不会隐藏下一行的图片，无需删除。需要继续添加新图片时，可以在对应小节直接新增 Markdown 图片。
 
-提交后查看 GitHub README 的渲染效果。路径和文件名区分大小写，扩展名必须与实际图片一致。
-
-## 4. 控制显示宽度
-
-普通 Markdown 会按页面宽度展示。手机截图太宽时，可改成 HTML 图片：
+手机截图使用 HTML 控制展示宽度：
 
 ```html
-<img src="docs/images/mobile.png" alt="课间移动端界面" width="360">
+<img src="docs/images/mobile.jpg" alt="移动端课表" width="360">
 ```
 
-需要并排放两张手机图时，可以自行新增图片：
+## 截图内容
 
-```html
-<p>
-  <img src="docs/images/mobile.png" alt="移动端课表" width="320">
-  <img src="docs/images/mobile-settings.png" alt="移动端学校设置" width="320">
-</p>
-```
+优先使用演示账号与虚构课程。公开前逐张检查姓名、学号、账号、密码、token、Cookie、二维码和私密订阅链接。真实链接即使只出现在截图里，也可能被其他人识别并用于读取课表。
 
-`mobile-settings.png` 是新增图片示例，使用前需自行上传。图下可补充简短图注。
+页面中不要填入有效凭据来展示登录表单。CalDAV 仍为占位页面，截图与图注不能将其描述成已经提供的服务。
 
-## 5. 图片中的信息
-
-优先使用演示账号和合成课表。真实截图公开前，请遮挡姓名、学号、账号、私密订阅链接、token、Cookie、认证二维码及其他个人信息。
-
-完整订阅链接可以直接读取对应课表。密码框显示为圆点，也不代表页面其他区域没有秘密。
-
-截图应来自实际界面。效果图或尚未实现的界面应在图注说明，不要把 CalDAV 占位页描述成已可用服务。
-
-## 6. 添加完成后的整理
-
-补齐图片后，可将主 README“界面预览”开头的预留说明替换成简单图注，或移除该说明。截图不必一次全部补齐，保留尚未启用的注释即可。
-
-参考：[GitHub README 相对图片路径说明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes)。
+桌面截图保留页面布局和可读文字；手机截图保留设备比例。新增效果图或未来界面时，应明确标注其状态。
