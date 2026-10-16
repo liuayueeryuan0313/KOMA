@@ -136,11 +136,33 @@ App、实验及 CAS 的厂商归属包含接口特征推断，应以目标学校
 - 容器需要能访问学校平台；日常打开网页、日历订阅可以在局域网或内网进行，学校同步需要网络连接。
 - 正式使用手机订阅时，手机必须能访问部署地址。
 
-推荐使用 **Docker Hub 镜像** 直接通过 Docker Compose 部署。若在无法连接外网的纯内网环境，可选择**离线镜像包**；如需二次开发或自定义修改，可选择**从源码构建**。
+推荐使用 **一键脚本部署**（首选），只需一行命令即可全自动完成配置并启动；同时也支持 **手动 Docker Compose 部署**、**离线镜像包加载** 与 **从源码构建**。
 
-### 方式一：Docker Hub 镜像部署（推荐）
+### 方式一：一键脚本部署（首选推荐）
 
-直接使用官方发布的预构建多架构镜像（同时支持 `linux/amd64` 与 `linux/arm64`，Docker 会自动适配硬件架构）。
+在 Linux / macOS / WSL 终端中执行以下一行命令，即可全自动完成环境检测、创建目录、生成配置并拉取镜像启动：
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/liuayueeryuan0313/KOMA/main/install.sh)"
+```
+
+> **备选命令**（若系统未安装 curl）：
+> ```sh
+> bash -c "$(wget -qO- https://raw.githubusercontent.com/liuayueeryuan0313/KOMA/main/install.sh)"
+> ```
+
+**脚本自动完成以下工作：**
+1. 检查 Docker 及 Docker Compose 运行环境；
+2. 自动创建工作目录（默认 `./koma`）并生成预配置的 `compose.yaml`；
+3. 智能检测本机局域网 IP 并生成 `.env` 配置文件（支持交互式确认端口与对外访问地址）；
+4. 从 Docker Hub 自动拉取官方最新多架构镜像 `aweo/koma:latest` 并启动服务；
+5. 输出访问地址、首次管理员设置码（Setup Token）及常用维护命令。
+
+---
+
+### 方式二：手动 Docker Compose 部署
+
+如果你希望手动组织文件与配置，可按以下步骤操作：
 
 #### 1. 准备部署目录与配置文件
 新建目录（例如 `koma`），进入目录并创建 `compose.yaml`：
@@ -206,7 +228,9 @@ docker compose exec komama cat /data/setup-token
 
 最后一条命令会输出**首次管理员设置码**。打开浏览器访问部署地址（如 `http://localhost:8080` 或实际 IP），点击“管理员设置”填入设置码创建初始管理员账户。管理员创建完成后，设置码自动失效。
 
-### 方式二：加载离线镜像包（离线 / 无外网环境）
+---
+
+### 方式三：加载离线镜像包（离线 / 无外网环境）
 
 如使用已提供的离线发布包，按设备架构选择文件：
 
@@ -240,7 +264,9 @@ ARM64 包不适用于 32 位 ARM 系统。v0.3.0 的 ARM64 镜像已在 x86 主�
 
 发布包附有 SHA256 校验文件。Windows 可使用 `Get-FileHash -Algorithm SHA256 文件路径`；Linux 可使用 `sha256sum 文件路径` 核对下载文件。
 
-### 方式三：从源码构建（开发者）
+---
+
+### 方式四：从源码构建（开发者）
 
 适合需要二次开发或自定义修改代码的场景：
 
@@ -621,7 +647,8 @@ Python 直接运行不会自动读取 Compose 的 `.env` 文件，应由运行�
 ├── README.md                     # 项目主页与使用说明
 ├── LICENSE                       # 版权声明
 ├── Dockerfile                    # 镜像构建
-├── compose.yaml                  # 源码部署配置
+├── compose.yaml                  # 容器部署配置
+├── install.sh                    # 一键安装与部署脚本
 ├── .env.example                  # 环境变量示例
 ├── requirements.txt              # Python 依赖
 ├── server.py                     # WebUI、账户 API、ICS 服务
