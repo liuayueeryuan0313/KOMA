@@ -6,9 +6,9 @@
 
 界面采用纸色、墨绿与留白，配有纸猫动画，提供桌面与移动端布局。
 
-**当前版本：v0.3.0** · **镜像架构：linux/amd64、linux/arm64** · **开发者：[安稳](https://github.com/liuayueeryuan0313)**
+**当前版本：v0.3.0** · **Docker 镜像：[`aweo/koma:latest`](https://hub.docker.com/r/aweo/koma)（支持 linux/amd64、linux/arm64）** · **开发者：[安稳](https://github.com/liuayueeryuan0313)**
 
-**开源许可：[Apache-2.0](LICENSE)** · **项目仓库：[liuayueeryuan0313/KOMA](https://github.com/liuayueeryuan0313/KOMA)**
+**开源许可：[Apache-2.0](LICENSE)** · **项目仓库：[liuayueeryuan0313/KOMA](https://github.com/liuayueeryuan0313/KOMA)** · **Docker Hub：[aweo/koma](https://hub.docker.com/r/aweo/koma)**
 
 > 本项目为非学校官方工具。已完成山东理工大学的实际接入验证；其他学校仅支持相同协议的自定义配置，仍需自行测试。CalDAV 目前只有占位页面，尚未提供服务。
 
@@ -133,49 +133,84 @@ App、实验及 CAS 的厂商归属包含接口特征推断，应以目标学校
 
 - Docker Engine 或 Docker Desktop；Docker Desktop 使用 **Linux 容器**。
 - 支持 `docker compose` 命令的现代 Compose v2 或更高版本。
-- 容器需要能访问学校平台；加载离线镜像、打开网页可以离线完成，学校同步需要网络。
+- 容器需要能访问学校平台；日常打开网页、日历订阅可以在局域网或内网进行，学校同步需要网络连接。
 - 正式使用手机订阅时，手机必须能访问部署地址。
 
-可选择**从源码构建**或**加载离线镜像**，使用其中一种即可。
+推荐使用 **Docker Hub 镜像** 直接通过 Docker Compose 部署。若在无法连接外网的纯内网环境，可选择**离线镜像包**；如需二次开发或自定义修改，可选择**从源码构建**。
 
-### 方式一：从源码构建
+### 方式一：Docker Hub 镜像部署（推荐）
 
-下载源码，或通过 Git 克隆后进入项目根目录：
+直接使用官方发布的预构建多架构镜像（同时支持 `linux/amd64` 与 `linux/arm64`，Docker 会自动适配硬件架构）。
 
-```sh
-git clone https://github.com/liuayueeryuan0313/KOMA.git
-cd KOMA
+#### 1. 准备部署目录与配置文件
+新建目录（例如 `koma`），进入目录并创建 `compose.yaml`：
+
+```yaml
+name: koma
+services:
+  komama:
+    image: aweo/koma:latest
+    init: true
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:${PORT:-8080}:8080"
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - komama-data:/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=96m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  komama-data:
 ```
 
-确认当前目录包含 `compose.yaml`、`Dockerfile`，再选择下面对应系统的命令。
+> **说明**：如需锁定特定版本，可将 `image` 改为 `aweo/koma:0.3.0`。若克隆了仓库源码，根目录已附带该文件。
+
+#### 2. 配置环境变量
+在同一目录下创建 `.env` 文件（或下载 `.env.example` 并重命名为 `.env`）：
 
 Linux / macOS：
 
 ```sh
+curl -O https://raw.githubusercontent.com/liuayueeryuan0313/KOMA/main/.env.example
 cp .env.example .env
-# 按下方说明编辑 .env，再启动
-docker compose up --build -d --wait
-docker compose exec komama cat /data/setup-token
 ```
 
 Windows PowerShell：
 
 ```powershell
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/liuayueeryuan0313/KOMA/main/.env.example -OutFile .env.example
 Copy-Item .env.example .env
-# 按下方说明编辑 .env，再启动
-docker compose up --build -d --wait
+```
+
+首次创建 `.env` 后按实际部署方式编辑：
+- **局域网访问**：将 `BIND_ADDRESS` 设为 `0.0.0.0`，将 `PUBLIC_URL` 设置为部署主机的实际局域网 IP（例如 `http://192.168.1.100:8080`）。
+- **仅本机访问**：保持默认 `http://localhost:8080` 即可。
+
+#### 3. 启动并获取管理员设置码
+执行以下命令，Docker 会自动拉取镜像并启动：
+
+```sh
+docker compose up -d --wait
 docker compose exec komama cat /data/setup-token
 ```
 
-首次创建 `.env` 后再按实际部署方式编辑；已有 `.env` 时请保留原配置，不要直接覆盖。默认访问地址为 `http://localhost:8080`，默认仅允许本机访问。
+最后一条命令会输出**首次管理员设置码**。打开浏览器访问部署地址（如 `http://localhost:8080` 或实际 IP），点击“管理员设置”填入设置码创建初始管理员账户。管理员创建完成后，设置码自动失效。
 
-最后一条命令读取首次管理员设置码。管理员创建完成后，设置码会失效。
-
-### 方式二：加载离线镜像
+### 方式二：加载离线镜像包（离线 / 无外网环境）
 
 如使用已提供的离线发布包，按设备架构选择文件：
 
-| 平台 | 离线包 | 镜像标签 |
+| 平台 | 离线包 | 内部镜像标签 |
 | --- | --- | --- |
 | x86-64 / AMD64 | `koma-docker-v0.3.0-linux-amd64.zip` | `koma:0.3.0` |
 | ARM64 / AArch64 | `koma-docker-v0.3.0-linux-arm64.zip` | `koma:0.3.0-arm64` |
@@ -204,6 +239,18 @@ docker compose exec komama cat /data/setup-token
 ARM64 包不适用于 32 位 ARM 系统。v0.3.0 的 ARM64 镜像已在 x86 主机通过仿真启动检查，尚未在真实 ARM 设备验收。
 
 发布包附有 SHA256 校验文件。Windows 可使用 `Get-FileHash -Algorithm SHA256 文件路径`；Linux 可使用 `sha256sum 文件路径` 核对下载文件。
+
+### 方式三：从源码构建（开发者）
+
+适合需要二次开发或自定义修改代码的场景：
+
+```sh
+git clone https://github.com/liuayueeryuan0313/KOMA.git
+cd KOMA
+cp .env.example .env
+docker compose up --build -d --wait
+docker compose exec komama cat /data/setup-token
+```
 
 ### 局域网访问
 
@@ -482,11 +529,21 @@ docker compose start
 
 ## 升级与日常维护
 
-### 从源码升级
+### 从 Docker Hub 升级（推荐）
 
-先备份，再更新源码，保留 `.env` 与原数据卷：
+先备份数据（详见下方备份章节），然后拉取最新镜像并重新启动即可完成平滑升级。数据卷 `komama-data` 会自动保留：
 
 ```sh
+docker compose pull
+docker compose up -d --wait
+```
+
+### 从源码升级
+
+更新源码后重新构建并启动：
+
+```sh
+git pull
 docker compose up --build -d --wait
 ```
 
@@ -495,6 +552,7 @@ docker compose up --build -d --wait
 加载新版本镜像，更新 Compose 中的镜像标签，再启动：
 
 ```sh
+docker load -i koma-v0.x.x-linux-xxx.tar
 docker compose up -d --wait
 ```
 
@@ -520,7 +578,7 @@ docker compose up -d --wait
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `BIND_ADDRESS` | 源码 Compose：`127.0.0.1`；离线包：`0.0.0.0` | 宿主机监听地址 |
+| `BIND_ADDRESS` | Compose 默认：`0.0.0.0`（允许局域网访问；如仅本机可设为 `127.0.0.1`） | 宿主机监听地址 |
 | `PORT` | `8080` | 宿主机映射端口 |
 | `PUBLIC_URL` | `http://localhost:8080` | 用户和日历客户端可访问的完整站点地址，不带路径 |
 | `COOKIE_SECURE` | `false` | HTTPS 部署设为 `true`，纯 HTTP 部署保持 `false` |
