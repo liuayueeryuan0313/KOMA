@@ -1,0 +1,80 @@
+name: Attach Offline Release Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag'
+        type: string
+        required: true
+        default: 'v0.4.0'
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  package:
+    name: Offline image (${{ matrix.architecture }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      ARCHITECTURE: ${{ matrix.architecture }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/setup-qemu-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Export and verify release image
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          VERSION="${RELEASE_TAG#v}"
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:$VERSION"
+          LOCAL_IMAGE="koma:$VERSION"
+          if [ "$ARCHITECTURE" = arm64 ]; then LOCAL_IMAGE="$LOCAL_IMAGE-arm64"; fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
+          docker pull --platform "linux/$ARCHITECTURE" "$IMAGE"
+          docker tag "$IMAGE" "$LOCAL_IMAGE"
+          docker run --rm --platform "linux/$ARCHITECTURE" --entrypoint python \
+            -e EXPECTED_VERSION="$VERSION" "$LOCAL_IMAGE" \
+            -c 'import os; from app_version import VERSION,BUILD_DATE; assert VERSION==os.environ["EXPECTED_VERSION"]; assert BUILD_DATE; print("Verified application version:",VERSION,"build:",BUILD_DATE)'
+          CONTAINER="koma-release-check-$ARCHITECTURE"
+          trap 'docker rm -f "$CONTAINER" >/dev/null 2>&1 || true' EXIT
+          docker run -d --platform "linux/$ARCHITECTURE" --name "$CONTAINER" \
+            --tmpfs /tmp -e DATA_DIR=/tmp/koma-check "$LOCAL_IMAGE"
+          HEALTHY=false
+          for attempt in $(seq 1 30); do
+            if docker exec -e EXPECTED_VERSION="$VERSION" "$CONTAINER" python -c \
+              'import json,os,urllib.request; p=json.load(urllib.request.urlopen("http://127.0.0.1:8080/healthz",timeout=2)); assert p["version"]==os.environ["EXPECTED_VERSION"]; assert p["build_date"]'; then
+              HEALTHY=true; break
+            fi
+            sleep 1
+          done
+          [ "$HEALTHY" = true ]
+          mkdir -p release-source release-assets
+          git archive "$RELEASE_TAG" compose.yaml .env.example | tar -x -C release-source
+          docker save -o "koma-$RELEASE_TAG-linux-$ARCHITECTURE.tar" "$LOCAL_IMAGE"
+          python3 scripts/package_offline.py --tag "$RELEASE_TAG" --architecture "$ARCHITECTURE" \
+            --image-tar "koma-$RELEASE_TAG-linux-$ARCHITECTURE.tar" \
+            --source-dir release-source --output-dir release-assets
+      - name: Upload offline package and SHA256 to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" \
+            "release-assets/koma-docker-$RELEASE_TAG-linux-$ARCHITECTURE.zip" \
+            "release-assets/koma-docker-$RELEASE_TAG-linux-$ARCHITECTURE.zip.sha256" \
+            --repo "$GITHUB_REPOSITORY"
