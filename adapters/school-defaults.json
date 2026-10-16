@@ -1,0 +1,14 @@
+{
+  "name": "山东理工大学",
+  "app_origin": "http://mcp.sdut.edu.cn:8080",
+  "app_h5_base": "https://shelian.sdut.edu.cn/schedule/api",
+  "app_school_id": "SDLG",
+  "app_yyid": "250515",
+  "app_exchange_path": "/sys/security/login_sdutapp",
+  "app_client_version": "3.2.0",
+  "jw_base": "https://jw.sdut.edu.cn/jwglxt",
+  "jw_campus_id": "1",
+  "lab_base": "https://syjxgl.sdut.edu.cn",
+  "lab_cas_entry": "/zxcas",
+  "sso_base": "https://authserver.sdut.edu.cn/authserver"
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "origin": "https://jw.sdut.edu.cn",
+  "path": "/jwglxt/kbcx/xskbcx_cxXsgrkb.html",
+  "query": {"gnmkdm": "N2151"},
+  "form": {"xnm": "2026", "xqm": "3", "kzlx": "ck", "xsdm": "", "kclbdm": "", "kclxdm": ""},
+  "periodsPath": "/jwglxt/kbcx/xskbcx_cxRjc.html",
+  "periodsForm": {"xnm": "2026", "xqm": "3", "xqh_id": "1"},
+  "calendarTerm": "2026-2027-1",
+  "maxWeekNumber": 20,
+  "observedOn": "2026-10-15",
+  "semesterCodeNote": "Only first-semester xqm=3 was observed; do not guess other semester codes."
+}

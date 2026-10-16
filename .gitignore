@@ -1,0 +1,25 @@
+data/
+.env
+__pycache__/
+*.pyc
+.test-data/
+*.log
+# Local secrets, school captures and runtime exports
+.env.*
+!.env.example
+.local/
+*.key
+*.pem
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.har
+*.ics
+# Backups and release assets belong outside source control
+backups/
+koma-backup*/
+*.tar
+*.tar.gz
+*.zip

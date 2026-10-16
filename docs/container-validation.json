@@ -1,0 +1,27 @@
+{
+  "version": "0.3.0",
+  "verified_at": "2026-10-16",
+  "health": {
+    "status": "ok",
+    "version": "0.3.0"
+  },
+  "authentication_required": true,
+  "private_subscriptions": {
+    "teaching": {
+      "http": 200,
+      "conditional_http": 304
+    },
+    "lab": {
+      "http": 200,
+      "conditional_http": 304
+    },
+    "combined": {
+      "http": 200,
+      "conditional_http": 304
+    }
+  },
+  "school_relogin_performed": false,
+  "existing_credentials_accounts_links_and_calendars_preserved": true,
+  "custom_other_school_verified": false,
+  "personal_deployment_details_redacted": true
+}

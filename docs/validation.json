@@ -1,0 +1,81 @@
+{
+  "version": "0.3.0",
+  "verified_at": "2026-10-16",
+  "automated_tests": {
+    "python_passed": 30,
+    "node_passed": 11,
+    "failed": 0
+  },
+  "javascript_syntax_files": 9,
+  "school_identity_verified": true,
+  "old_lan_server_8765_closed": true,
+  "docker_build_verified": true,
+  "docker_limitation": null,
+  "browser_actual_viewport": {
+    "width": 1026,
+    "horizontal_overflow": false
+  },
+  "mobile_viewport_verified": true,
+  "temporary_qa_account_removed": true,
+  "frontend_verification": {
+    "aggregated_subscription_first": true,
+    "first_visit_notice": true,
+    "acknowledged_notice_not_repeated_after_reload": true,
+    "mobile_widths": [
+      320,
+      390,
+      430
+    ],
+    "responsive_cases_passed": 24,
+    "desktop_platform_columns": 3,
+    "mobile_platform_columns": 1,
+    "app_confirmation_verified": true,
+    "real_iphone_safari_verified": false,
+    "v030_responsive_cases_passed": 9,
+    "desktop_custom_platform_columns": 3
+  },
+  "docker_environment": {
+    "desktop": "4.95.0",
+    "cli": "29.8.2",
+    "compose": "5.6.0",
+    "wsl": "3.0.3",
+    "official_installer_sha256_verified": true,
+    "official_installer_signature_verified": true,
+    "compose_config_verified": true,
+    "local_existing_data_mount_verified": true,
+    "windows_reboot_pending": false,
+    "engine_running": true,
+    "engine": "29.8.2",
+    "container_healthy": true
+  },
+  "about_ui": {
+    "project": "课间 · KOMA",
+    "developer": "安稳",
+    "github": "https://github.com/liuayueeryuan0313",
+    "telegram": "https://t.me/aweodev",
+    "browser_modal_verified": true,
+    "mobile_widths": [
+      320,
+      390,
+      430
+    ],
+    "horizontal_overflow": false
+  },
+  "custom_school": {
+    "default_sdut_compatible": true,
+    "temporary_test_override_verified": true,
+    "old_credentials_not_reused": true,
+    "per_user_persistent_config": true,
+    "custom_clock_verified": true,
+    "public_dns_pinned_transport_verified": true,
+    "real_other_school_authentication_verified": false
+  },
+  "subscription_ui": {
+    "ics": true,
+    "caldav": "placeholder_only",
+    "apple_android_instructions": true,
+    "aggregate_first": true,
+    "keyboard_tabs_verified": true
+  },
+  "personal_course_statistics_redacted": true
+}
