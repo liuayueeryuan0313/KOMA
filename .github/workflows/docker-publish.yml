@@ -74,11 +74,7 @@ jobs:
         with:
           images: ${{ steps.image-targets.outputs.images }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.event_name == 'release' || inputs.release_tag != '' }}
-            type=semver,pattern={{version}},value=${{ inputs.release_tag || github.ref_name }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.release_tag || github.ref_name }}
-            type=semver,pattern={{major}},value=${{ inputs.release_tag || github.ref_name }}
-            type=ref,event=tag
+            type=raw,value=latest
 
       - name: Record application version and image build date
         id: build-date
@@ -87,6 +83,7 @@ jobs:
           echo "version=$(python3 -c 'from app_version import VERSION; print(VERSION)')" >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker images
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -102,3 +99,23 @@ jobs:
             org.opencontainers.image.created=${{ steps.build-date.outputs.date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+
+      - name: Publish architecture-specific version tags
+        env:
+          IMAGES: ${{ steps.image-targets.outputs.images }}
+          VERSION: ${{ steps.build-date.outputs.version }}
+          INDEX_DIGEST: ${{ steps.build.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r IMAGE; do
+            [ -n "$IMAGE" ] || continue
+            IMAGE="${IMAGE,,}"
+            docker buildx imagetools inspect "$IMAGE@$INDEX_DIGEST" --raw > manifest.json
+            for ARCH in amd64 arm64; do
+              DIGEST=$(python3 -c 'import json,sys; m=json.load(open("manifest.json")); ds=[x["digest"] for x in m["manifests"] if x.get("platform",{}).get("os")=="linux" and x.get("platform",{}).get("architecture")==sys.argv[1]]; assert len(ds)==1, ds; print(ds[0])' "$ARCH")
+              docker buildx imagetools create --prefer-index=false \
+                --tag "$IMAGE:$VERSION-$ARCH" "$IMAGE@$DIGEST"
+            done
+          done <<< "$IMAGES"
