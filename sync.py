@@ -212,15 +212,9 @@ class SyncManager:
         snapshot=convert_lab(response['payload'],settings['config'])
         return snapshot,response['payload'].get('identity',{}),'lab-cas',''
     def _rebuild_combined(self,user_id,config):
-        teaching=self.store.calendar(user_id,'teaching');lab=self.store.calendar(user_id,'lab')
-        if not teaching or not lab:return
-        try:
-            snapshot,report=merge(json.loads(teaching['snapshot']),json.loads(lab['snapshot']),config)
-            normalized=normalize(snapshot,config);ics,metrics=compile_calendar(normalized,config)
-            metrics['overlaps']=len(report['overlaps']);metrics['term']=snapshot['xnxq']
-            self.store.put_calendar(user_id,'combined',snapshot,normalized,ics,metrics)
-            self.store.log(user_id,'combined','COMBINED_PUBLISHED',f"聚合课表已更新，共{metrics['occurrences']}课次"+('；存在时间冲突，请核对' if report['overlaps'] else ''),'warning' if report['overlaps'] else 'info')
-        except (ValueError,KeyError,TypeError):self.store.log(user_id,'combined','COMBINED_RETAINED','两份课表学期或配置尚不一致，聚合订阅保留最近成功版本','warning')
+        from calendar_layers import rebuild
+        with self.store.db() as c:
+            c.execute('BEGIN IMMEDIATE');rebuild(c,user_id,config)
     def _job(self,user_id,kinds,initialize_app):
         try:
             for kind in kinds:
@@ -236,7 +230,9 @@ class SyncManager:
                     self.store.put_calendar(user_id,kind,snapshot,normalized,ics,metrics)
                     self._finish(user_id,kind,True,source,warning,identity)
                     self.store.log(user_id,kind,'SYNC_SUCCESS',f"同步完成，共{metrics['occurrences']}课次"+('；当前使用教务故障转移' if warning else ''),'warning' if warning else 'info')
-                    self._rebuild_combined(user_id,config)
+                    published=self.store.calendar(user_id,'combined')
+                    if published and json.loads(published['metrics']).get('conflicts'):
+                        self.store.log(user_id,kind,'MANUAL_CONFLICT','学校安排有变更，已保留手动修改，请在课表中核对','warning')
                 except SourceError as error:
                     self._finish(user_id,kind,warning=str(error));self.store.log(user_id,kind,error.code,str(error),'error')
                 except (ValueError,KeyError,TypeError):

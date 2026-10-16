@@ -1,5 +1,6 @@
 """课间 / KOMA — small multi-user calendar service. Copyright 2026 安稳."""
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -13,6 +14,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from core import Store,ROOT,DISCLAIMER,DISCLAIMER_VERSION,password_hash
 from sync import SyncManager
+from calendar_edit import save_occurrence
+from calendar_layers import resolve_occurrence
+from app_version import VERSION,BUILD_DATE
+from updates import UpdateChecker
+from recovery import QUESTIONS
 from school_profiles import prepare_school_config,prepare_clock_config,school_changed
 
 class APIError(Exception):
@@ -21,7 +27,7 @@ class APIError(Exception):
 class CalendarServer(ThreadingHTTPServer):
     daemon_threads=True
     def __init__(self,address,store,manager,public_url=None):
-        self.store=store;self.manager=manager
+        self.store=store;self.manager=manager;self.updates=UpdateChecker()
         self.public_url=(public_url or os.getenv('PUBLIC_URL') or f'http://localhost:{address[1]}').rstrip('/')
         parsed=urlsplit(self.public_url)
         if parsed.scheme not in ('http','https') or not parsed.netloc or parsed.path not in ('','/') or parsed.query or parsed.fragment:raise ValueError('PUBLIC_URL must be an HTTP(S) origin without a path')
@@ -55,6 +61,21 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data,dict):raise ValueError()
             return data
         except (ValueError,UnicodeError):raise APIError(400,'请求内容不是有效JSON') from None
+    def client_ip_info(self):
+        """Visitor display only; forwarding headers are not used for authentication."""
+        def valid_ip(value):
+            value=(value or '').strip()
+            try:return (value,ipaddress.ip_address(value).version)
+            except ValueError:return None
+        selected=valid_ip(self.headers.get('CF-Connecting-IP'))
+        if not selected:
+            forwarded=[ip for part in self.headers.get('X-Forwarded-For','').split(',') if (ip:=valid_ip(part))]
+            selected=next((ip for ip in forwarded if ip[1]==6),forwarded[0] if forwarded else None)
+        if not selected:selected=valid_ip(self.client_address[0])
+        raw_ip,version=selected or ('',4)
+        country=self.headers.get('CF-IPCountry','').strip().upper()
+        if not re.fullmatch(r'[A-Z]{2}|T1',country):country=''
+        return {'ip':raw_ip,'proto':'IPv6' if version==6 else 'IPv4','country':country}
     def token(self):
         cookie=SimpleCookie()
         try:cookie.load(self.headers.get('Cookie','')[:8192])
@@ -93,13 +114,17 @@ class Handler(BaseHTTPRequestHandler):
     def route(self):
         path=urlsplit(self.path).path;method=self.command;store=self.server.store
         if method in ('GET','HEAD'):
-            if path=='/healthz':return self.response(200,{'status':'ok','version':'0.3.0'})
-            if path=='/api/bootstrap':return self.response(200,{'setup_required':not store.has_admin(),'registration_open':self.server.registration,'disclaimer':DISCLAIMER,'disclaimer_version':DISCLAIMER_VERSION,'developer':'安稳'})
-            static={'/':('index.html','text/html; charset=utf-8'),'/app.js':('app.js','text/javascript; charset=utf-8'),'/style.css':('style.css','text/css; charset=utf-8'),'/mascot.svg':('mascot.svg','image/svg+xml'),'/favicon.ico':('mascot.svg','image/svg+xml')}
+            if path=='/healthz':return self.response(200,{'status':'ok','version':VERSION,'build_date':BUILD_DATE})
+            if path=='/api/bootstrap':
+                ip_info=self.client_ip_info()
+                return self.response(200,{'setup_required':not store.has_admin(),'registration_open':self.server.registration,'disclaimer':DISCLAIMER,'disclaimer_version':DISCLAIMER_VERSION,'developer':'安稳','version':VERSION,'build_date':BUILD_DATE,'client_ip':ip_info['ip'],'ip_proto':ip_info['proto'],'country':ip_info['country'],'recovery_questions':[{'id':key,'label':label} for key,label in QUESTIONS]})
+            static={'/':('index.html','text/html; charset=utf-8'),'/app.js':('app.js','text/javascript; charset=utf-8'),'/cat-pointer.js':('cat-pointer.js','text/javascript; charset=utf-8'),'/style.css':('style.css','text/css; charset=utf-8'),'/mascot.svg':('mascot.svg','image/svg+xml'),'/favicon.ico':('mascot.svg','image/svg+xml')}
             if path in static:
                 name,content_type=static[path];return self.response(200,(ROOT/'web'/name).read_bytes(),content_type)
             if path=='/api/session':
                 user=self.user();return self.response(200,{'user':store.user(user['id']),'csrf':user['csrf']})
+            if path=='/api/updates':
+                self.user();return self.response(200,self.server.updates.check())
             if path=='/api/dashboard':
                 user=self.user();return self.response(200,store.dashboard(user['id'],self.server.public_url))
             if path=='/api/admin/users':
@@ -114,13 +139,24 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.check_origin()
             data=self.body()
+            if path in ('/api/recovery/questions','/api/recovery/reset') and method=='POST':
+                username=data.get('username','')
+                if not isinstance(username,str) or len(username)>32:raise APIError(400,'账户名格式无效')
+                # Peer address for throttling; never trust the informational IP badge headers here.
+                peer_allowed=store.rate_limit('recovery:peer:'+self.client_address[0],limit=20,minutes=15)
+                account_allowed=store.rate_limit('recovery:account:'+username.casefold(),limit=12,minutes=15)
+                if not peer_allowed or not account_allowed:raise APIError(429,'密保尝试过于频繁，请15分钟后重试')
+                if path=='/api/recovery/questions':return self.response(200,{'questions':store.recovery_questions(username)})
+                if not store.rate_limit('recovery:verify:'+username.casefold(),limit=5,minutes=15):raise APIError(429,'密保尝试过于频繁，请15分钟后重试')
+                store.reset_with_recovery(username,data.get('answers'),data.get('new_password'))
+                return self.response(200,{'ok':True})
             if path in ('/api/login','/api/register','/api/setup') and method=='POST':
                 if not store.rate_limit(path+':'+self.client_address[0]):raise APIError(429,'尝试过于频繁，请稍后重试')
                 if path=='/api/login':return self.session_response(store.login(data.get('username',''),data.get('password','')))
                 if not data.get('consent'):raise APIError(400,'请先阅读并同意使用说明与免责声明')
                 if path=='/api/register':
                     if not self.server.registration:raise APIError(403,'管理员已关闭自行注册')
-                    return self.session_response(store.create_user(data.get('username',''),data.get('password','')))
+                    return self.session_response(store.create_user(data.get('username',''),data.get('password',''),recovery=data.get('recovery')))
                 token=data.get('setup_token')
                 if not isinstance(token,str) or not token:raise APIError(403,'请填写一次性管理员设置码')
                 return self.session_response(store.create_user(data.get('username',''),data.get('password',''),'admin',token))
@@ -155,6 +191,18 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/settings' and method=='PUT':
                 if self.server.manager.busy(user['id']):raise APIError(409,'同步进行中，完成后再修改设置')
                 return self.response(200,store.update_settings(user['id'],data))
+            resolution=re.fullmatch(r'/api/occurrences/(teaching|lab)/([a-f0-9]{64})/(restore|keep)',path)
+            if resolution and method=='POST':
+                if self.server.manager.busy(user['id']):raise APIError(409,'同步进行中，请完成后再修改')
+                resolve_occurrence(store,user['id'],resolution[1],resolution[2],resolution[3],data.get('revision'))
+                return self.response(200,{'ok':True})
+            occurrence_match=re.fullmatch(r'/api/occurrences/(teaching|lab)(?:/([a-f0-9]{64}))?',path)
+            if occurrence_match and method in ('POST','PUT'):
+                kind,identifier=occurrence_match.groups()
+                if (method=='POST' and identifier) or (method=='PUT' and not identifier):raise APIError(400,'课程编辑请求无效')
+                if self.server.manager.busy(user['id']):raise APIError(409,'同步进行中，请完成后再编辑课表')
+                result=save_occurrence(store,user['id'],kind,data,identifier)
+                return self.response(201 if method=='POST' else 200,result)
             if path=='/api/sync' and method=='POST':
                 scope=data.get('scope');kinds=['teaching','lab'] if scope=='all' else [scope]
                 initialize=bool(data.get('initialize_app',False))
@@ -166,6 +214,10 @@ class Handler(BaseHTTPRequestHandler):
             match=re.fullmatch(r'/api/admin/users/([a-f0-9]{32})',path)
             if match and method=='PATCH':
                 self.user(admin=True);store.admin_update(user['id'],match[1],data);return self.response(200,{'ok':True})
+            if path=='/api/account/recovery' and method=='PUT':
+                if not store.rate_limit('recovery:settings:'+user['id'],limit=5,minutes=15):raise APIError(429,'密保设置尝试过于频繁，请15分钟后重试')
+                store.set_recovery(user['id'],data.get('current_password'),data.get('recovery'))
+                return self.response(200,{'ok':True})
             if path=='/api/account/password' and method=='POST':
                 store.login(user['username'],data.get('current_password',''));hashed=password_hash(data.get('new_password',''))
                 with store.db() as c:

@@ -23,3 +23,6 @@ koma-backup*/
 *.tar
 *.tar.gz
 *.zip
+
+# Generated only inside the built image
+build-info.json

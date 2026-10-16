@@ -1,1 +1,64 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 300" role="img" aria-labelledby="title"><title id="title">纸猫，抱着一本小课本</title><style>.cat{animation:breathe 4s ease-in-out infinite;transform-origin:160px 250px}.tail{animation:sway 3.6s ease-in-out infinite;transform-origin:231px 219px}.eye{animation:blink 6s infinite;transform-box:fill-box;transform-origin:center}.leaf{animation:leaf 5s ease-in-out infinite;transform-origin:260px 85px}@keyframes breathe{50%{transform:translateY(-5px) rotate(-1deg)}}@keyframes sway{50%{transform:rotate(13deg)}}@keyframes blink{0%,43%,47%,100%{transform:scaleY(1)}45%{transform:scaleY(.12)}}@keyframes leaf{50%{transform:rotate(7deg)}}@media(prefers-reduced-motion:reduce){*{animation:none!important}}</style><ellipse cx="162" cy="270" rx="91" ry="11" fill="#d5d8c7" opacity=".5"/><g class="leaf" fill="none" stroke="#81917b" stroke-width="2.5" stroke-linecap="round"><path d="M253 115q13-22 8-45M261 90q-22-4-16-21 18 4 16 21M262 80q17-4 16-19-18 4-16 19"/></g><g class="cat" stroke="#3f4a3d" stroke-width="3" stroke-linejoin="round"><path class="tail" d="M224 239q51 2 42-40-2-11-11-8-7 3-3 13 8 21-26 18" fill="#eee8d9"/><path d="M108 172q-20 31-17 76 2 15 21 16h94q21-3 22-19 3-44-19-75" fill="#f5f0e4"/><path d="M95 114l9-68q3-12 12-5l38 28q18-2 34 1l34-28q10-7 12 6l7 67q8 20-1 40-14 30-68 31-56 1-74-27-12-19-3-45z" fill="#faf5e9"/><path d="M110 89l6-32 24 20M202 77l20-20 5 33" fill="#d7ac91" stroke="none"/><path d="M143 69l6 20 12-19M175 70l-3 19 13-16" stroke="#b5bca5" stroke-width="7" fill="none"/><ellipse class="eye" cx="132" cy="121" rx="4" ry="5" fill="#3f4a3d" stroke="none"/><ellipse class="eye" cx="198" cy="121" rx="4" ry="5" fill="#3f4a3d" stroke="none"/><path d="M160 131l5 4 5-4" fill="#c48679" stroke="#c48679" stroke-width="2"/><path d="M165 135q0 9-8 7m8-7q0 9 8 7" fill="none" stroke-width="2" stroke-linecap="round"/><path d="M103 136l17 2m-17 7 17-3m92-4 17-3m-17 8 17 3" fill="none" stroke="#aab09b" stroke-width="2"/><ellipse cx="121" cy="138" rx="9" ry="4" fill="#dab2a1" opacity=".55" stroke="none"/><ellipse cx="207" cy="138" rx="9" ry="4" fill="#dab2a1" opacity=".55" stroke="none"/><path d="M112 177q49 20 95-1l-8 14q-45 19-83-1z" fill="#a95543" stroke="none"/><path d="M191 187l6 26 14-4-11-27" fill="#a95543" stroke="none"/><path d="M118 201l43 9 44-11-2 49-43 13-42-11z" fill="#6d8065" stroke-width="2"/><path d="M161 210l-1 51M125 212l24 6m-24 3 24 6m24-9 23-7m-23 15 23-7" stroke="#c9d2bc" stroke-width="2"/><path d="M104 207q-12 6-4 20 6 7 18 1l7-7q3-12-8-14zM220 207q13 8 3 21-6 6-18 0l-6-7q-2-12 8-14z" fill="#faf5e9"/><path d="M110 252q-10 0-11 8 2 8 23 6m79-14q14-1 15 8-2 8-24 6" fill="#faf5e9"/></g><g fill="#9aab8b"><path d="M62 202l3-10 3 10 10 3-10 3-3 10-3-10-10-3z"/><circle cx="250" cy="147" r="3"/><circle cx="75" cy="118" r="2"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 300" role="img" aria-labelledby="title" class="paper-cat-art">
+  <title id="title">纸猫，抱着一本小课本</title>
+  <style>
+.paper-cat-art .cat{animation:koma-breathe 4s ease-in-out infinite;transform-origin:160px 250px}
+.paper-cat-art .tail{animation:koma-sway 3.6s ease-in-out infinite;transform-origin:231px 219px}
+.paper-cat-art .eye{animation:koma-blink 6s infinite;transform-box:fill-box;transform-origin:center}
+.paper-cat-art .leaf{animation:koma-leaf 5s ease-in-out infinite;transform-origin:260px 85px}
+.paper-cat-art .cat-follow{transform:translate(var(--cat-x,0px),var(--cat-y,0px))}
+.paper-cat-art .cat-body-follow{transform-origin:160px 250px;transform:translate(var(--body-x,0px),var(--body-y,0px)) rotate(var(--body-turn,0deg))}
+.paper-cat-art .cat-head-follow{transform-origin:165px 172px;transform:translate(var(--head-x,0px),var(--head-y,0px)) rotate(var(--head-turn,0deg)) skewX(var(--head-skew,0deg))}
+.paper-cat-art .cat-face-follow{transform:translate(var(--face-x,0px),var(--face-y,0px))}
+.paper-cat-art .cat-gaze{transform:translate(var(--eye-x,0px),var(--eye-y,0px))}
+.paper-cat-art .cat-tail-follow{transform-origin:231px 219px;transform:rotate(var(--tail-turn,0deg))}
+@keyframes koma-breathe{50%{transform:translateY(-5px) rotate(-1deg)}}
+@keyframes koma-sway{50%{transform:rotate(13deg)}}
+@keyframes koma-blink{0%,43%,47%,100%{transform:scaleY(1)}45%{transform:scaleY(.12)}}
+@keyframes koma-leaf{50%{transform:rotate(7deg)}}
+@media(prefers-reduced-motion:reduce){.paper-cat-art *{animation:none!important}.paper-cat-art .cat-follow,.paper-cat-art .cat-body-follow,.paper-cat-art .cat-head-follow,.paper-cat-art .cat-face-follow,.paper-cat-art .cat-gaze,.paper-cat-art .cat-tail-follow{transform:none!important}}
+@media(max-width:600px),(hover:none),(pointer:coarse){.paper-cat-art .cat-follow,.paper-cat-art .cat-body-follow,.paper-cat-art .cat-head-follow,.paper-cat-art .cat-face-follow,.paper-cat-art .cat-gaze,.paper-cat-art .cat-tail-follow{transform:none}}
+</style>
+  <ellipse cx="162" cy="270" rx="91" ry="11" fill="#d5d8c7" opacity=".5" />
+  <g class="leaf" fill="none" stroke="#81917b" stroke-width="2.5" stroke-linecap="round">
+    <path d="M253 115q13-22 8-45M261 90q-22-4-16-21 18 4 16 21M262 80q17-4 16-19-18 4-16 19" />
+  </g>
+  <g class="cat-follow">
+    <g class="cat" stroke="#3f4a3d" stroke-width="3" stroke-linejoin="round">
+      <g class="cat-body-follow">
+        <g class="cat-tail-follow">
+          <path class="tail" d="M224 239q51 2 42-40-2-11-11-8-7 3-3 13 8 21-26 18" fill="#eee8d9" />
+        </g>
+        <path d="M108 172q-20 31-17 76 2 15 21 16h94q21-3 22-19 3-44-19-75" fill="#f5f0e4" />
+      </g>
+      <g class="cat-head-follow">
+        <path d="M95 114l9-68q3-12 12-5l38 28q18-2 34 1l34-28q10-7 12 6l7 67q8 20-1 40-14 30-68 31-56 1-74-27-12-19-3-45z" fill="#faf5e9" />
+        <path d="M110 89l6-32 24 20M202 77l20-20 5 33" fill="#d7ac91" stroke="none" />
+        <path d="M143 69l6 20 12-19M175 70l-3 19 13-16" stroke="#b5bca5" stroke-width="7" fill="none" />
+        <g class="cat-face-follow">
+          <g class="cat-gaze">
+            <ellipse class="eye" cx="132" cy="121" rx="4" ry="5" fill="#3f4a3d" stroke="none" />
+            <ellipse class="eye" cx="198" cy="121" rx="4" ry="5" fill="#3f4a3d" stroke="none" />
+          </g>
+          <path d="M160 131l5 4 5-4" fill="#c48679" stroke="#c48679" stroke-width="2" />
+          <path d="M165 135q0 9-8 7m8-7q0 9 8 7" fill="none" stroke-width="2" stroke-linecap="round" />
+          <path d="M103 136l17 2m-17 7 17-3m92-4 17-3m-17 8 17 3" fill="none" stroke="#aab09b" stroke-width="2" />
+          <ellipse cx="121" cy="138" rx="9" ry="4" fill="#dab2a1" opacity=".55" stroke="none" />
+          <ellipse cx="207" cy="138" rx="9" ry="4" fill="#dab2a1" opacity=".55" stroke="none" />
+        </g>
+      </g>
+      <g class="cat-body-follow">
+        <path d="M112 177q49 20 95-1l-8 14q-45 19-83-1z" fill="#a95543" stroke="none" />
+        <path d="M191 187l6 26 14-4-11-27" fill="#a95543" stroke="none" />
+        <path d="M118 201l43 9 44-11-2 49-43 13-42-11z" fill="#6d8065" stroke-width="2" />
+        <path d="M161 210l-1 51M125 212l24 6m-24 3 24 6m24-9 23-7m-23 15 23-7" stroke="#c9d2bc" stroke-width="2" />
+        <path d="M104 207q-12 6-4 20 6 7 18 1l7-7q3-12-8-14zM220 207q13 8 3 21-6 6-18 0l-6-7q-2-12 8-14z" fill="#faf5e9" />
+        <path d="M110 252q-10 0-11 8 2 8 23 6m79-14q14-1 15 8-2 8-24 6" fill="#faf5e9" />
+      </g>
+    </g>
+  </g>
+  <g fill="#9aab8b">
+    <path d="M62 202l3-10 3 10 10 3-10 3-3 10-3-10-10-3z" />
+    <circle cx="250" cy="147" r="3" />
+    <circle cx="75" cy="118" r="2" />
+  </g>
+</svg>

@@ -73,6 +73,7 @@ def normalize(source, config):
         for field in ['teacher','className','campus','activityType','courseName','projectName','selectionType']:
             if row.get(field):
                 entry[field]=str(row[field])
+        if row.get('sourceOccurrenceId'):entry['sourceOccurrenceId']=str(row['sourceOccurrenceId'])
         identity = (course_id, start.isoformat(), end.isoformat(), location)
         if identity in seen:
             raise ValueError('Duplicate course occurrence or override collision')
@@ -106,7 +107,19 @@ def display_location(row, config):
     return ' '.join(v for v in [row['location'],course_teacher(row,config)] if v)
 
 
+def reminder_settings(config):
+    # Older installations keep their existing behavior until explicitly changed.
+    enabled = config.get('reminder_enabled', True)
+    minutes = config.get('reminder_minutes', 20)
+    if not isinstance(enabled, bool):
+        raise ValueError('提前提醒开关须为开启或关闭')
+    if isinstance(minutes, bool) or not isinstance(minutes, int) or not 1 <= minutes <= 10080:
+        raise ValueError('提前提醒时长须为1–10080分钟的整数')
+    return enabled, minutes
+
+
 def compile_calendar(normalized, config):
+    reminder_enabled, reminder_minutes = reminder_settings(config)
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//SDUT Calendar Kit//1.0//ZH',
              'CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:'+escape(config.get('calendar_name','山东理工大学课表')),
@@ -115,7 +128,8 @@ def compile_calendar(normalized, config):
              'TZOFFSETFROM:+0800','TZOFFSETTO:+0800','TZNAME:CST','END:STANDARD','END:VTIMEZONE']
     groups = defaultdict(list)
     for row in normalized['occurrences']:
-        key = (row['term'],row['courseId'],row['weekday'],row['startPeriod'],row['endPeriod'],row['location'])
+        presentation = json.dumps([row['name'],course_teacher(row,config),row['startLocal'][11:],row['endLocal'][11:],row.get('projectName',''),row.get('selectionType','')],ensure_ascii=False)
+        key = (row['term'],row['courseId'],row['weekday'],row['startPeriod'],row['endPeriod'],row['location'],row.get('eventUid',''),presentation)
         groups[key].append(row)
     recurring = 0
     for key, rows in sorted(groups.items()):
@@ -124,7 +138,7 @@ def compile_calendar(normalized, config):
         starts = sorted({datetime.fromisoformat(r['startLocal']) for r in rows})
         start, end = starts[0], datetime.fromisoformat(first['endLocal'])
         uid_key = json.dumps([config['calendar_id'],*key], ensure_ascii=False, separators=(',',':'))
-        uid = hashlib.sha256(uid_key.encode('utf-8')).hexdigest()+'@sdut-calendar-kit'
+        uid = first.get('eventUid') or hashlib.sha256(uid_key.encode('utf-8')).hexdigest()+'@sdut-calendar-kit'
         weeks = ','.join(map(str,sorted({r['week'] for r in rows})))
         details = config.get('course_details',{}).get(first['courseId'],config.get('course_details',{}).get(first['name'],{}))
         description = f"第{first['startPeriod']}-{first['endPeriod']}节；教学周：{weeks}"
@@ -150,9 +164,10 @@ def compile_calendar(normalized, config):
                 if values:
                     lines.append(label+';TZID=Asia/Shanghai:'+','.join(d.strftime('%Y%m%dT%H%M%S') for d in sorted(values)))
             recurring += 1
-        lines += ['BEGIN:VALARM','ACTION:DISPLAY','TRIGGER;RELATED=START:-PT20M',
-                  'DESCRIPTION:'+escape(first['name']+'@'+first['location']),
-                  'END:VALARM','END:VEVENT']
+        if reminder_enabled:
+            lines += ['BEGIN:VALARM','ACTION:DISPLAY',f'TRIGGER;RELATED=START:-PT{reminder_minutes}M',
+                      'DESCRIPTION:'+escape(first['name']+'@'+first['location']), 'END:VALARM']
+        lines.append('END:VEVENT')
     lines += ['END:VCALENDAR']
     ics = '\r\n'.join(fold(line) for line in lines)+'\r\n'
     validate_calendar(ics, normalized, config)
@@ -173,6 +188,7 @@ def unescape(value):
 
 
 def validate_calendar(ics, normalized, config):
+    reminder_enabled, reminder_minutes = reminder_settings(config)
     blob = ics.encode('utf-8')
     if b'\n' in blob.replace(b'\r\n',b'') or any(len(line)>75 for line in blob.split(b'\r\n')):
         raise ValueError('Invalid line endings or UTF-8 folding')
@@ -182,8 +198,12 @@ def validate_calendar(ics, normalized, config):
     actual, uids = Counter(), set()
     for part in text.split('BEGIN:VEVENT\r\n')[1:]:
         event=part.split('END:VEVENT')[0]
-        if event.count('BEGIN:VALARM')!=1 or 'ACTION:DISPLAY\r\nTRIGGER;RELATED=START:-PT20M' not in event:
-            raise ValueError('Missing or incorrect 20-minute reminder')
+        if reminder_enabled:
+            expected_alarm = f'ACTION:DISPLAY\r\nTRIGGER;RELATED=START:-PT{reminder_minutes}M'
+            if event.count('BEGIN:VALARM') != 1 or event.count('END:VALARM') != 1 or expected_alarm not in event:
+                raise ValueError('Calendar reminder differs from configured lead time')
+        elif 'BEGIN:VALARM' in event or 'END:VALARM' in event:
+            raise ValueError('Calendar reminder must be disabled')
         props = dict(line.split(':',1) for line in event.split('BEGIN:VALARM')[0].split('\r\n') if ':' in line)
         if props['UID'] in uids:
             raise ValueError('Duplicate series UID')

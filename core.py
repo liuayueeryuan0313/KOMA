@@ -7,11 +7,13 @@ import os
 import re
 import secrets
 import sqlite3
+from recovery import QUESTIONS,FAILURE,DUMMY_HASH,prepare_recovery,public_questions,check_answers
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from school_profiles import prepare_school_config,prepare_clock_config,school_changed
+from adapters.scripts.compile_calendar import compile_calendar,reminder_settings
 
 ROOT=Path(__file__).resolve().parent
 KINDS=('teaching','lab','combined')
@@ -22,6 +24,7 @@ def now():return datetime.now(timezone.utc).isoformat(timespec='seconds')
 def later(minutes):return (datetime.now(timezone.utc)+timedelta(minutes=minutes)).isoformat(timespec='seconds')
 def digest(value):return hashlib.sha256(value.encode()).hexdigest()
 def json_text(value):return json.dumps(value,ensure_ascii=False,separators=(',',':'))
+def occurrence_id(row):return digest(json_text(row))
 def password_hash(password):
     if not isinstance(password,str) or not 10<=len(password)<=256:raise ValueError('站内密码须为10–256个字符')
     salt=secrets.token_bytes(16)
@@ -51,10 +54,14 @@ class Store:
             connection.executescript('''
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,username TEXT NOT NULL UNIQUE COLLATE NOCASE,password_hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('admin','user')),disabled INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,consent_version TEXT NOT NULL,student_name TEXT NOT NULL DEFAULT '');
+            CREATE TABLE IF NOT EXISTS account_recovery(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,questions TEXT NOT NULL,answer_hashes TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS settings(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,secret TEXT NOT NULL,config TEXT NOT NULL,mode TEXT NOT NULL DEFAULT 'auto');
             CREATE TABLE IF NOT EXISTS sync_state(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('teaching','lab')),enabled INTEGER NOT NULL DEFAULT 0,interval_minutes INTEGER NOT NULL DEFAULT 360,next_run TEXT,last_attempt TEXT,last_success TEXT,state TEXT NOT NULL DEFAULT 'idle',active_source TEXT,warning TEXT NOT NULL DEFAULT '',identity_name TEXT NOT NULL DEFAULT '',identity_id TEXT NOT NULL DEFAULT '',PRIMARY KEY(user_id,kind));
             CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,csrf TEXT NOT NULL,expires TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS calendars(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,ics TEXT NOT NULL,etag TEXT NOT NULL,snapshot TEXT NOT NULL,normalized TEXT NOT NULL,metrics TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,kind));
+            CREATE TABLE IF NOT EXISTS school_sources(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,term TEXT NOT NULL,snapshot TEXT NOT NULL,normalized TEXT NOT NULL,PRIMARY KEY(user_id,kind,term));
+            CREATE TABLE IF NOT EXISTS school_occurrences(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,term TEXT NOT NULL,identifier TEXT NOT NULL,row TEXT NOT NULL,active INTEGER NOT NULL,PRIMARY KEY(user_id,kind,term,identifier));
+            CREATE TABLE IF NOT EXISTS manual_occurrences(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,term TEXT NOT NULL,identifier TEXT NOT NULL,mode TEXT NOT NULL CHECK(mode IN ('create','override')),baseline TEXT NOT NULL,fields TEXT NOT NULL,PRIMARY KEY(user_id,kind,term,identifier));
             CREATE TABLE IF NOT EXISTS links(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,token_hash TEXT UNIQUE NOT NULL,token_secret TEXT NOT NULL,PRIMARY KEY(user_id,kind));
             CREATE TABLE IF NOT EXISTS logs(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,category TEXT NOT NULL,level TEXT NOT NULL,event TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS logs_user ON logs(user_id,id DESC);
@@ -63,6 +70,8 @@ class Store:
             ''')
             connection.execute("UPDATE sync_state SET state='error',warning='服务重启中断了上次任务；已保留最近成功课表' WHERE state IN ('running','queued')")
             connection.execute("UPDATE platform_checks SET state='error',message='服务重启中断了检查，请重新操作' WHERE state='running'")
+        from calendar_layers import migrate_legacy
+        migrate_legacy(self)
         self.setup_path=self.directory/'setup-token'
         if not self.has_admin() and not self.setup_path.exists():
             self.setup_path.write_text(secrets.token_urlsafe(24),encoding='utf-8');self.setup_path.chmod(0o600)
@@ -82,10 +91,11 @@ class Store:
         blob=base64.b64decode(value);return json.loads(self.cipher.decrypt(blob[:12],blob[12:],context.encode()))
     def has_admin(self):
         with self.db() as c:return c.execute("SELECT 1 FROM users WHERE role='admin' AND disabled=0").fetchone() is not None
-    def create_user(self,username,password,role='user',setup_token=None):
+    def create_user(self,username,password,role='user',setup_token=None,recovery=None):
         valid_username(username);hashed=password_hash(password);identifier=secrets.token_hex(16)
+        recovery_data=prepare_recovery(recovery) if role=='user' else None
         config=json.loads((ROOT/'adapters/config.json').read_text(encoding='utf-8'))
-        config.update(calendar_id='komama:'+identifier,calendar_name='我的课表',jw_semester_code='3')
+        config.update(calendar_id='komama:'+identifier,calendar_name='我的课表',jw_semester_code='3',reminder_enabled=True,reminder_minutes=20)
         with self.db() as c:
             c.execute('BEGIN IMMEDIATE')
             if role=='admin':
@@ -95,6 +105,7 @@ class Store:
             elif role!='user':raise ValueError('无效权限组')
             try:c.execute('INSERT INTO users(id,username,password_hash,role,created_at,consent_version) VALUES(?,?,?,?,?,?)',(identifier,username,hashed,role,now(),DISCLAIMER_VERSION))
             except sqlite3.IntegrityError:raise ValueError('用户名已存在') from None
+            if recovery_data:c.execute('INSERT INTO account_recovery VALUES(?,?,?)',(identifier,json_text(recovery_data[0]),json_text(recovery_data[1])))
             c.execute('INSERT INTO settings(user_id,secret,config) VALUES(?,?,?)',(identifier,self.encrypt({},identifier),json_text(config)))
             for kind in ('teaching','lab'):c.execute('INSERT INTO sync_state(user_id,kind) VALUES(?,?)',(identifier,kind))
             for kind in KINDS:self._rotate(c,identifier,kind)
@@ -110,6 +121,33 @@ class Store:
         stored=row['password_hash'] if row else base64.b64encode(b'0'*80).decode()
         if not password_ok(password,stored) or not row or row['disabled']:raise ValueError('用户名或密码错误')
         return self.user(row['id'])
+    def recovery_questions(self,username):
+        valid_username(username)
+        with self.db() as c:
+            row=c.execute("SELECT r.questions FROM account_recovery r JOIN users u ON u.id=r.user_id WHERE u.username=? AND u.role='user' AND u.disabled=0",(username,)).fetchone()
+        return public_questions(username,json.loads(row['questions']) if row else None)
+    def set_recovery(self,user_id,current_password,entries):
+        prepared=prepare_recovery(entries)
+        if not prepared:raise ValueError('请填写两道密保问题和答案')
+        with self.db() as c:
+            c.execute('BEGIN IMMEDIATE')
+            user=c.execute("SELECT * FROM users WHERE id=? AND role='user' AND disabled=0",(user_id,)).fetchone()
+            if not user or not password_ok(current_password,user['password_hash']):raise ValueError('当前密码不正确，或账户不支持密保')
+            c.execute('INSERT OR REPLACE INTO account_recovery VALUES(?,?,?)',(user_id,json_text(prepared[0]),json_text(prepared[1])))
+        self.log(user_id,'account','RECOVERY_CONFIGURED','已设置站内账户密保',category='account')
+    def reset_with_recovery(self,username,entries,new_password):
+        valid_username(username)
+        with self.db() as c:
+            c.execute('BEGIN IMMEDIATE')
+            row=c.execute("SELECT u.id,r.questions,r.answer_hashes FROM users u JOIN account_recovery r ON r.user_id=u.id WHERE u.username=? AND u.role='user' AND u.disabled=0",(username,)).fetchone()
+            questions=json.loads(row['questions']) if row else [q['id'] for q in public_questions(username)]
+            hashes=json.loads(row['answer_hashes']) if row else [DUMMY_HASH,DUMMY_HASH]
+            verified=check_answers(questions,hashes,entries)
+            if not verified or not row:raise ValueError(FAILURE)
+            hashed=password_hash(new_password)
+            c.execute('UPDATE users SET password_hash=? WHERE id=?',(hashed,row['id']))
+            c.execute('DELETE FROM sessions WHERE user_id=?',(row['id'],))
+        self.log(row['id'],'account','PASSWORD_RECOVERED','已通过密保重设站内密码，旧登录会话已失效',category='account')
     def session(self,user_id):
         token=secrets.token_urlsafe(32);csrf=secrets.token_urlsafe(24)
         with self.db() as c:
@@ -127,7 +165,9 @@ class Store:
         return {'credentials':self.decrypt(row['secret'],user_id),'config':json.loads(row['config']),'mode':row['mode']}
     def public_settings(self,user_id):
         settings=self.settings(user_id);creds=settings.pop('credentials')
+        settings['config'].setdefault('reminder_enabled',True);settings['config'].setdefault('reminder_minutes',20)
         settings.update(student_id=creds.get('student_id',''),has_campus_password=bool(creds.get('campus_password')),has_jw_password=bool(creds.get('jw_password')),has_app_token=bool(creds.get('token')),app_token_invalid=bool(creds.get('token_invalid')))
+        with self.db() as c:settings['recovery_enabled']=c.execute('SELECT 1 FROM account_recovery WHERE user_id=?',(user_id,)).fetchone() is not None
         return settings
     def update_settings(self,user_id,data):
         old=self.settings(user_id);creds=old['credentials'];config=prepare_school_config(old['config'],data);mode=data.get('mode',old['mode'])
@@ -159,6 +199,9 @@ class Store:
         config['maxWeekNumber']=int(config['maxWeekNumber'])
         if not 1<=config['maxWeekNumber']<=53:raise ValueError('学期周数须为1–53')
         if not re.fullmatch(r'\d{1,2}',str(config['jw_semester_code'])):raise ValueError('教务学期编码无效')
+        for field in ('reminder_enabled','reminder_minutes'):
+            if field in data:config[field]=data[field]
+        reminder_changed=reminder_settings(old['config'])!=reminder_settings(config)
         plans=[]
         for kind in ('teaching','lab'):
             plan=data.get(kind,{})
@@ -175,9 +218,22 @@ class Store:
             if changed:
                 c.execute('DELETE FROM platform_checks WHERE user_id=?',(user_id,))
                 c.execute('DELETE FROM calendars WHERE user_id=?',(user_id,))
+                for table in ('school_sources','school_occurrences','manual_occurrences'):c.execute('DELETE FROM '+table+' WHERE user_id=?',(user_id,))
                 c.execute("UPDATE users SET student_name='' WHERE id=?",(user_id,))
                 c.execute("UPDATE sync_state SET last_attempt=NULL,last_success=NULL,state='idle',active_source=NULL,warning='',identity_name='',identity_id='' WHERE user_id=?",(user_id,))
                 for kind in KINDS:self._rotate(c,user_id,kind)
+            elif old['config']['term']!=config['term']:
+                c.execute('DELETE FROM calendars WHERE user_id=?',(user_id,))
+                from calendar_layers import rebuild
+                rebuild(c,user_id,config)
+            elif reminder_changed:
+                # Rewrite every existing feed atomically from saved occurrences;
+                # changing reminders never needs another school fetch.
+                calendars=c.execute('SELECT kind,normalized,metrics FROM calendars WHERE user_id=?',(user_id,)).fetchall()
+                for calendar in calendars:
+                    ics,metrics=compile_calendar(json.loads(calendar['normalized']),config)
+                    metrics={**json.loads(calendar['metrics']),**metrics}
+                    c.execute('UPDATE calendars SET ics=?,etag=?,metrics=?,updated_at=? WHERE user_id=? AND kind=?',(ics,digest(ics),json_text(metrics),now(),user_id,calendar['kind']))
         self.log(user_id,'account','SETTINGS_SAVED','账户与同步设置已保存')
         return self.public_settings(user_id)
     def save_secret(self,user_id,updates):
@@ -211,6 +267,9 @@ class Store:
         with self.db() as c:
             row=c.execute('SELECT * FROM calendars WHERE user_id=? AND kind=?',(user_id,kind)).fetchone();return dict(row) if row else None
     def put_calendar(self,user_id,kind,snapshot,normalized,ics,metrics):
+        if kind in ('teaching','lab'):
+            from calendar_layers import publish_school
+            return publish_school(self,user_id,kind,snapshot,normalized)
         with self.db() as c:c.execute('INSERT OR REPLACE INTO calendars VALUES(?,?,?,?,?,?,?,?)',(user_id,kind,ics,digest(ics),json_text(snapshot),json_text(normalized),json_text(metrics),now()))
     def calendar_for_token(self,token,kind):
         with self.db() as c:
@@ -227,7 +286,7 @@ class Store:
         occurrences=[]
         for kind in ('teaching','lab'):
             cal=self.calendar(user_id,kind)
-            if cal:occurrences.extend([{**r,'kind':kind} for r in json.loads(cal['normalized'])['occurrences']])
+            if cal:occurrences.extend([{**r,'kind':kind,'occurrenceId':r.get('occurrenceId') or occurrence_id(r)} for r in json.loads(cal['normalized'])['occurrences']])
         occurrences.sort(key=lambda r:(r['startLocal'],r['courseId']))
         return {'user':user,'settings':settings,'states':states,'calendars':calendars,'links':self.links(user_id,public_url),'occurrences':occurrences,'logs':logs,'platform_checks':checks}
     def admin_users(self):
