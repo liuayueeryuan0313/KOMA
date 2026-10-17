@@ -63,6 +63,7 @@ class Store:
             CREATE TABLE IF NOT EXISTS school_sources(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,term TEXT NOT NULL,snapshot TEXT NOT NULL,normalized TEXT NOT NULL,PRIMARY KEY(user_id,kind,term));
             CREATE TABLE IF NOT EXISTS school_occurrences(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,term TEXT NOT NULL,identifier TEXT NOT NULL,row TEXT NOT NULL,active INTEGER NOT NULL,PRIMARY KEY(user_id,kind,term,identifier));
             CREATE TABLE IF NOT EXISTS manual_occurrences(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,term TEXT NOT NULL,identifier TEXT NOT NULL,mode TEXT NOT NULL CHECK(mode IN ('create','override')),baseline TEXT NOT NULL,fields TEXT NOT NULL,PRIMARY KEY(user_id,kind,term,identifier));
+            CREATE TABLE IF NOT EXISTS deleted_occurrences(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,term TEXT NOT NULL,identifier TEXT NOT NULL,deleted_at TEXT NOT NULL,PRIMARY KEY(user_id,kind,term,identifier));
             CREATE TABLE IF NOT EXISTS links(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,token_hash TEXT UNIQUE NOT NULL,token_secret TEXT NOT NULL,PRIMARY KEY(user_id,kind));
             CREATE TABLE IF NOT EXISTS logs(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,category TEXT NOT NULL,level TEXT NOT NULL,event TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS logs_user ON logs(user_id,id DESC);
@@ -239,7 +240,7 @@ class Store:
             if changed:
                 c.execute('DELETE FROM platform_checks WHERE user_id=?',(user_id,))
                 c.execute('DELETE FROM calendars WHERE user_id=?',(user_id,))
-                for table in ('school_sources','school_occurrences','manual_occurrences'):c.execute('DELETE FROM '+table+' WHERE user_id=?',(user_id,))
+                for table in ('school_sources','school_occurrences','manual_occurrences','deleted_occurrences'):c.execute('DELETE FROM '+table+' WHERE user_id=?',(user_id,))
                 c.execute("UPDATE users SET student_name='' WHERE id=?",(user_id,))
                 c.execute("UPDATE sync_state SET last_attempt=NULL,last_success=NULL,state='idle',active_source=NULL,warning='',identity_name='',identity_id='' WHERE user_id=?",(user_id,))
                 for kind in KINDS:self._rotate(c,user_id,kind)

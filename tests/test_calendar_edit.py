@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 from core import Store
 from server import CalendarServer
 from sync import SyncManager
-from calendar_edit import save_occurrence
+from calendar_edit import delete_occurrence, save_occurrence
 
 
 class CalendarEditTests(unittest.TestCase):
@@ -32,6 +32,37 @@ class CalendarEditTests(unittest.TestCase):
         self.assertEqual(dashboard['occurrences'][0]['occurrenceId'], row['occurrenceId'])
         self.assertEqual(dashboard['calendars']['combined']['occurrences'], 1)
         self.assertIn('SUMMARY:手动课程', reloaded.calendar(self.user, 'teaching')['ics'])
+
+    def test_delete_manual_occurrence_removes_it_from_calendar_and_subscription(self):
+        row = save_occurrence(self.store, self.user, 'teaching', self.values)
+        delete_occurrence(self.store, self.user, 'teaching', row['occurrenceId'], row['revision'])
+        dashboard = self.store.dashboard(self.user, '')
+        self.assertEqual(dashboard['occurrences'], [])
+        self.assertEqual(dashboard['calendars']['combined']['occurrences'], 0)
+        self.assertNotIn('SUMMARY:手动课程', self.store.calendar(self.user, 'combined')['ics'])
+        with self.assertRaisesRegex(ValueError, '不存在'):
+            delete_occurrence(self.store, self.user, 'teaching', row['occurrenceId'])
+
+    def test_delete_rejects_stale_revision_and_hides_school_occurrence_after_sync(self):
+        row = save_occurrence(self.store, self.user, 'teaching', self.values)
+        with self.assertRaisesRegex(ValueError, '已变更'):
+            delete_occurrence(self.store, self.user, 'teaching', row['occurrenceId'], 'stale')
+        from test_service import teaching
+        from adapters.scripts.compile_calendar import normalize, compile_calendar
+        config = self.store.settings(self.user)['config']
+        source = teaching(config)
+        normalized = normalize(source, config)
+        ics, metrics = compile_calendar(normalized, config)
+        self.store.put_calendar(self.user, 'teaching', source, normalized, ics, metrics)
+        school_row = next(r for r in self.store.dashboard(self.user, '')['occurrences'] if r['origin'] == 'school')
+        delete_occurrence(self.store, self.user, 'teaching', school_row['occurrenceId'], school_row['revision'])
+        remaining = self.store.dashboard(self.user, '')['occurrences']
+        self.assertNotIn(school_row['occurrenceId'], {r['occurrenceId'] for r in remaining})
+        from calendar_layers import publish_school
+        publish_school(self.store, self.user, 'teaching', source, normalized)
+        remaining = self.store.dashboard(self.user, '')['occurrences']
+        self.assertNotIn(school_row['occurrenceId'], {r['occurrenceId'] for r in remaining})
+        self.assertNotIn(school_row['startLocal'].replace('-', '').replace(':', ''), self.store.calendar(self.user, 'teaching')['ics'])
 
     def test_edit_only_one_occurrence_of_imported_series(self):
         from test_service import teaching
@@ -119,9 +150,12 @@ class CalendarEditTests(unittest.TestCase):
                 row = json.load(response)
             with request('/api/occurrences/teaching/' + row['occurrenceId'], 'PUT', {**self.values, 'name': '新名称'}, headers) as response:
                 self.assertEqual(response.status, 200)
+                edited = json.load(response)
             url = self.store.links(self.user, base)['combined']
             with urlopen(url) as response:
                 self.assertIn('SUMMARY:新名称', response.read().decode())
+            with request('/api/occurrences/teaching/' + row['occurrenceId'], 'DELETE', {'revision': edited['revision']}, headers) as response:
+                self.assertEqual(response.status, 200)
         finally:
             server.shutdown()
             server.server_close()

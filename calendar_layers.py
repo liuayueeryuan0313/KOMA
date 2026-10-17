@@ -97,8 +97,10 @@ def effective_rows(c, user_id, kind, config):
     term = config['term']
     school = {r['identifier']: (json.loads(r['row']), bool(r['active'])) for r in c.execute('SELECT * FROM school_occurrences WHERE user_id=? AND kind=? AND term=?', (user_id, kind, term))}
     edits = {r['identifier']: dict(r) for r in c.execute('SELECT * FROM manual_occurrences WHERE user_id=? AND kind=? AND term=?', (user_id, kind, term))}
+    deleted = {r['identifier'] for r in c.execute('SELECT identifier FROM deleted_occurrences WHERE user_id=? AND kind=? AND term=?', (user_id, kind, term))}
     output = []
     for identifier in school.keys() | edits.keys():
+        if identifier in deleted: continue
         base, active = school.get(identifier, ({}, False))
         edit = edits.get(identifier)
         if not active and not edit: continue

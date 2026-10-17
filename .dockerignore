@@ -26,3 +26,13 @@ koma-backup*
 
 # Generated only inside the built image
 build-info.json
+
+# Development and documentation do not run inside the application image.
+docs/
+scripts/
+work/
+README.md
+CHANGELOG.md
+install.sh
+start-local.ps1
+compose.yaml

@@ -2,7 +2,7 @@ FROM node:24-bookworm-slim AS node
 FROM python:3.12-slim-bookworm
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DATA_DIR=/data HOST=0.0.0.0 PORT=8080 NODE_BIN=/usr/local/bin/node
-LABEL org.opencontainers.image.title="KOMA" org.opencontainers.image.version="0.4.1" org.opencontainers.image.authors="安稳" org.opencontainers.image.url="https://github.com/liuayueeryuan0313"
+LABEL org.opencontainers.image.title="KOMA" org.opencontainers.image.version="0.4.2" org.opencontainers.image.authors="安稳" org.opencontainers.image.url="https://github.com/liuayueeryuan0313"
 WORKDIR /app
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 ca-certificates \

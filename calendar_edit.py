@@ -67,3 +67,27 @@ def save_occurrence(store, user_id, kind, values, identifier=None):
         c.execute('INSERT INTO logs(user_id,kind,category,level,event,message,created_at) VALUES(?,?,?,?,?,?,?)',(user_id,kind,'sync','info','OCCURRENCE_EDITED' if current else 'OCCURRENCE_CREATED','已保存课程手动修改' if current else '已手动新建课程',now()))
         result=next(r for r in effective_rows(c,user_id,kind,config) if r['occurrenceId']==identifier)
     return {**result,'kind':kind}
+
+
+def delete_occurrence(store, user_id, kind, identifier, expected_revision=None):
+    """Delete one occurrence, retaining a tombstone for school-provided rows."""
+    if kind not in ('teaching', 'lab'): raise ValueError('请选择教学或实验课表')
+    config = store.settings(user_id)['config']
+    with store.db() as c:
+        c.execute('BEGIN IMMEDIATE'); assert_editable(c, user_id)
+        ensure_layers(c, user_id, kind, config)
+        row = next((r for r in effective_rows(c, user_id, kind, config) if r['occurrenceId'] == identifier), None)
+        if not row: raise ValueError('课程已不存在，请刷新课表')
+        if expected_revision and expected_revision != row['revision']:
+            raise ValueError('课程已变更，请刷新后重新操作')
+        if row['origin'] == 'manual':
+            c.execute("DELETE FROM manual_occurrences WHERE user_id=? AND kind=? AND term=? AND identifier=? AND mode='create'",
+                      (user_id, kind, config['term'], identifier))
+        else:
+            c.execute('INSERT OR REPLACE INTO deleted_occurrences VALUES(?,?,?,?,?)',
+                      (user_id, kind, config['term'], identifier, now()))
+            c.execute('DELETE FROM manual_occurrences WHERE user_id=? AND kind=? AND term=? AND identifier=?',
+                      (user_id, kind, config['term'], identifier))
+        rebuild(c, user_id, config)
+        c.execute('INSERT INTO logs(user_id,kind,category,level,event,message,created_at) VALUES(?,?,?,?,?,?,?)',
+                  (user_id, kind, 'sync', 'info', 'OCCURRENCE_DELETED', '已删除课程', now()))

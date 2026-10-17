@@ -4,9 +4,6 @@ on:
   release:
     types: [published]
   push:
-    tags:
-      - 'v*.*.*'
-      - 'v*'
     branches:
       - 'main'
   workflow_dispatch:
@@ -78,9 +75,16 @@ jobs:
 
       - name: Record application version and image build date
         id: build-date
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
+          set -euo pipefail
+          VERSION=$(python3 -c 'from app_version import VERSION; print(VERSION)')
+          if [ -n "$RELEASE_TAG" ]; then
+            [ "$RELEASE_TAG" = "v$VERSION" ] || { echo 'Release tag and source version do not match'; exit 1; }
+          fi
           echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-          echo "version=$(python3 -c 'from app_version import VERSION; print(VERSION)')" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker images
         id: build
@@ -119,3 +123,15 @@ jobs:
                 --tag "$IMAGE:$VERSION-$ARCH" "$IMAGE@$DIGEST"
             done
           done <<< "$IMAGES"
+
+  release-assets:
+    name: Attach both offline release images
+    needs: docker
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+      packages: read
+    uses: ./.github/workflows/release-assets.yml
+    with:
+      tag: ${{ github.event.release.tag_name }}
+    secrets: inherit

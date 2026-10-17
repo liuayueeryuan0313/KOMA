@@ -1,5 +1,6 @@
 """课间 / KOMA — small multi-user calendar service. Copyright 2026 安稳."""
 import hmac
+import hashlib
 import ipaddress
 import json
 import os
@@ -14,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from core import Store,ROOT,DISCLAIMER,DISCLAIMER_VERSION,password_hash
 from sync import SyncManager
-from calendar_edit import save_occurrence
+from calendar_edit import delete_occurrence, save_occurrence
 from calendar_layers import resolve_occurrence
 from app_version import VERSION,BUILD_DATE
 from updates import UpdateChecker
@@ -120,7 +121,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.response(200,{'setup_required':not store.has_admin(),'registration_open':self.server.registration,'disclaimer':DISCLAIMER,'disclaimer_version':DISCLAIMER_VERSION,'developer':'安稳','version':VERSION,'build_date':BUILD_DATE,'client_ip':ip_info['ip'],'ip_proto':ip_info['proto'],'country':ip_info['country'],'recovery_questions':[{'id':key,'label':label} for key,label in QUESTIONS]})
             static={'/':('index.html','text/html; charset=utf-8'),'/app.js':('app.js','text/javascript; charset=utf-8'),'/theme.js':('theme.js','text/javascript; charset=utf-8'),'/cat-pointer.js':('cat-pointer.js','text/javascript; charset=utf-8'),'/style.css':('style.css','text/css; charset=utf-8'),'/mascot.svg':('mascot.svg','image/svg+xml'),'/favicon.ico':('mascot.svg','image/svg+xml')}
             if path in static:
-                name,content_type=static[path];return self.response(200,(ROOT/'web'/name).read_bytes(),content_type)
+                name,content_type=static[path];content=(ROOT/'web'/name).read_bytes()
+                if name=='index.html':return self.response(200,content,content_type)
+                etag='"'+hashlib.sha256(content).hexdigest()+'"'
+                headers={'ETag':etag,'Cache-Control':'public, max-age=0, must-revalidate'}
+                tags=[tag.strip().removeprefix('W/') for tag in self.headers.get('If-None-Match','').split(',')]
+                if etag in tags or '*' in tags:
+                    headers['Content-Length']=str(len(content))
+                    return self.response(304,b'',content_type,headers)
+                return self.response(200,content,content_type,headers)
             if path=='/api/account/avatar':
                 user=self.user();image=store.avatar(user['id'])
                 return self.response(200 if image else 204,image or b'','image/png')
@@ -209,10 +218,13 @@ class Handler(BaseHTTPRequestHandler):
                 resolve_occurrence(store,user['id'],resolution[1],resolution[2],resolution[3],data.get('revision'))
                 return self.response(200,{'ok':True})
             occurrence_match=re.fullmatch(r'/api/occurrences/(teaching|lab)(?:/([a-f0-9]{64}))?',path)
-            if occurrence_match and method in ('POST','PUT'):
+            if occurrence_match and method in ('POST','PUT','DELETE'):
                 kind,identifier=occurrence_match.groups()
-                if (method=='POST' and identifier) or (method=='PUT' and not identifier):raise APIError(400,'课程编辑请求无效')
+                if (method=='POST' and identifier) or (method in ('PUT','DELETE') and not identifier):raise APIError(400,'课程编辑请求无效')
                 if self.server.manager.busy(user['id']):raise APIError(409,'同步进行中，请完成后再编辑课表')
+                if method=='DELETE':
+                    delete_occurrence(store,user['id'],kind,identifier,data.get('revision'))
+                    return self.response(200,{'ok':True})
                 result=save_occurrence(store,user['id'],kind,data,identifier)
                 return self.response(201 if method=='POST' else 200,result)
             if path=='/api/sync' and method=='POST':

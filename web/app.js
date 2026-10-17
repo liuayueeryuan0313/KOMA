@@ -11,15 +11,19 @@ function formatCountry(code){
  return `${flag} ${name}`;
 }
 function renderClientIp(info){
- const ip=String(info?.client_ip||'');
+ const ip=String(info?.client_ip||'').trim();
  const proto=info?.ip_proto==='IPv6'||(!info?.ip_proto&&ip.includes(':'))?'IPv6':'IPv4';
  const isV6=proto==='IPv6',countryLabel=formatCountry(info?.country);
  const html=`<span class="ip-indicator ${isV6?'is-v6':''}" aria-hidden="true"></span><span class="ip-addr" title="${esc(ip)}">${esc(ip)}</span><span class="ip-tag ${isV6?'tag-v6':'tag-v4'}">${proto}</span>${countryLabel?`<span class="ip-country">${esc(countryLabel)}</span>`:''}`;
  for(const selector of ['#auth-ip-badge','#sidebar-ip-badge','#auth-mobile-ip-badge','#workspace-mobile-ip-badge']){
   const badge=$(selector);if(!badge)continue;
   badge.innerHTML=ip?html:'';badge.hidden=!ip;
-  badge.title=ip?[ip,proto,countryLabel].filter(Boolean).join(' · '):'';
-  badge.setAttribute('aria-label',ip?'当前访问：'+badge.title:'');
+  if(ip)badge.href='https://ip.net.coffee/ip/'+encodeURIComponent(ip);
+  else badge.removeAttribute('href');
+  badge.target='_blank';badge.rel='noopener noreferrer';
+  const summary=[ip,proto,countryLabel].filter(Boolean).join(' · ');
+  badge.title=ip?summary+' · 点击查询 IP 详情（新标签页）':'';
+  badge.setAttribute('aria-label',ip?'在 Net.Coffee 查询当前访问 IP：'+summary+'（新标签页）':'');
  }
 }
 const paths={home:'M3 10 12 3l9 7v10H3z M9 20v-7h6v7',calendar:'M5 5h14v15H5z M8 3v4m8-4v4M5 10h14m-11 4h2m4 0h2m-8 3h2',link:'m9 15 6-6 M8 16l-2 2a4 4 0 0 1-5-5l4-4a4 4 0 0 1 5 0 M14 15a4 4 0 0 0 5 0l4-4a4 4 0 0 0-5-5l-2 2',activity:'M3 13h4l3-8 4 14 3-6h4',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M10 2h4l1 3 3 1 3 3-2 3 1 3-3 3-3-1-2 2-3-1-1-3-3-1-1-4 2-2-1-3 3-3z',users:'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M2 21v-3a7 7 0 0 1 14 0v3 M16 4a4 4 0 0 1 0 7m2 4a6 6 0 0 1 4 6',logout:'M9 4H4v16h5 M13 8l5 4-5 4m-4-4h12',refresh:'M20 8a9 9 0 0 0-15-3L2 8m0-5v5h5 M4 16a9 9 0 0 0 15 3l3-3m0 5v-5h-5',arrow:'M5 12h14m-6-6 6 6-6 6',chevron:'m9 5 7 7-7 7',alert:'m12 3 10 18H2z M12 9v5m0 3v1',book:'M12 5 3 3v16l9 2 9-2V3z M12 5v16',copy:'M8 8h12v12H8z M5 15H3V3h12v2',download:'M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 7v5l4 2',check:'m5 12 4 4L19 6',lock:'M6 10h12v11H6z M8 10V6a4 4 0 0 1 8 0v4'};
@@ -53,7 +57,7 @@ async function api(path,options={}){
  const response=await fetch(path,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',...(csrf?{'X-CSRF-Token':csrf}:{}),...(options.headers||{})}});
  const value=await response.json();if(!response.ok){if(response.status===401&&data){data=null;showAuth();}throw Error(value.error||'请求未完成');}return value;
 }
-function modal(title,body,actions,closable=true){$('#modal-content').innerHTML=`<h2 id="modal-title">${esc(title)}</h2>${body}<div class="dialog-actions">${closable?'<button class="button" data-action="close-modal">关闭</button>':''}${actions||''}</div>`;$('#modal').showModal();enterEffect($('#modal'),[{opacity:0,transform:'translateY(12px) scale(.98)'},{opacity:1,transform:'translateY(0) scale(1)'}],{duration:230});}
+function modal(title,body,actions,closable=true,actionsClass=''){$('#modal-content').innerHTML=`<h2 id="modal-title">${esc(title)}</h2>${body}<div class="dialog-actions ${esc(actionsClass)}">${closable?'<button class="button" data-action="close-modal">关闭</button>':''}${actions||''}</div>`;$('#modal').showModal();enterEffect($('#modal'),[{opacity:0,transform:'translateY(12px) scale(.98)'},{opacity:1,transform:'translateY(0) scale(1)'}],{duration:230});}
 function disclaimer(firstUse=false){modal('使用说明与免责声明',`${firstUse?'<p class="panel-description">首次使用课间，请先阅读以下说明。</p>':''}<p>${esc(bootstrap.disclaimer)}</p><p style="margin-top:17px;font-size:10px">版本 ${esc(bootstrap.disclaimer_version)} · 开发者 安稳 · <a class="credit-link" href="https://github.com/liuayueeryuan0313" target="_blank" rel="noopener noreferrer" aria-label="安稳的 GitHub，另开窗口">© 2026 安稳 <span aria-hidden="true">↗</span></a>，版权所有。</p>`,firstUse?'<button class="button primary" data-action="ack-disclaimer">我已阅读，继续使用</button>':'',!firstUse);}
 function maybeFirstUseNotice(){let seen=false;try{seen=localStorage.getItem('koma.disclaimer.version')===bootstrap.disclaimer_version;}catch{}if(!seen)disclaimer(true);}
 function showAuth(){csrf='';$('#workspace').hidden=true;$('#auth').hidden=false;$('#loading').hidden=true;$('#setup-tab').hidden=!bootstrap.setup_required;setAuthMode('login');lastAnimatedPage='';enterEffect($('.auth-story'),null,{duration:420});enterEffect($('.auth-box'),null,{duration:340,delay:60,fill:'backwards'});document.dispatchEvent?.(new Event('koma:render'));}
@@ -126,7 +130,17 @@ function settings(){
 }
 function debug(){return pageHeading('DEBUG','调试。','')+`<section class="panel"><label class="reminder-toggle"><span>在日历订阅访问日志中显示源 IP</span><input id="debug-source-ip" class="reminder-switch" type="checkbox" role="switch" ${data.settings.config.debug_source_ip?'checked':''}></label></section>`;}
 function admin(){return pageHeading('ADMINISTRATION','用户管理。','管理账户权限与可用状态。学校密码不会在这里展示。')+`<div style="overflow:auto"><table class="admin-table"><thead><tr><th>账户</th><th>权限组</th><th>创建日期</th><th>状态</th><th>管理</th></tr></thead><tbody>${adminUsers.map(u=>`<tr><td>${esc(u.username)}<small>${esc(u.student_name||'未同步学校姓名')}</small></td><td><select data-role-user="${u.id}" aria-label="${esc(u.username)}权限组"><option value="user" ${u.role==='user'?'selected':''}>普通用户</option><option value="admin" ${u.role==='admin'?'selected':''}>管理员</option></select></td><td>${fmt(u.created_at,true)}</td><td>${u.disabled?'已停用':'可用'}</td><td><button class="button small ${u.disabled?'':'danger'}" data-action="toggle-user" data-user="${u.id}" data-disabled="${u.disabled?'0':'1'}">${u.disabled?'启用':'停用'}</button></td></tr>`).join('')}</tbody></table></div>`;}
-function aboutContent(){return `<section class="panel about-card"><div class="about-identity"><span class="brand-mark" aria-hidden="true"><svg class="brand-symbol" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21c6-2 11-1 16 3 5-4 10-5 16-3v18c-6-2-11-1-16 3-5-4-10-5-16-3Z" fill="currentColor" fill-opacity=".07"/><path d="M24 24v18M12 27c3-.4 5 .1 8 1.7m-8 4.1c3-.4 5 .1 8 1.7m8-5.8c3-1.6 5-2.1 8-1.7m-8 7.5c3-1.6 5-2.1 8-1.7"/><circle cx="24" cy="12" r="4" fill="currentColor" fill-opacity=".16"/><path d="M24 3v2M14.8 7.3l1.6 1.1M33.2 7.3l-1.6 1.1M16 15.5l-1.8.8m17.8-.8 1.8.8"/></svg></span><div><span class="eyebrow">KOMA / ABOUT</span><h2>课间 · KOMA</h2><span class="muted">v${esc(bootstrap?.version||'—')}</span></div></div><p class="about-description">将学校的教学课表与实验课表整理成日历订阅。自动同步安排，让每天的课程清楚、有序。</p><dl class="about-details"><div><dt>构建日期</dt><dd>${esc(buildDateLabel(bootstrap).replace(/^构建(?:于 |日期：)/,''))}</dd></div><div><dt>开发者</dt><dd>安稳</dd></div><div><dt>GitHub</dt><dd><a class="about-link" href="https://github.com/liuayueeryuan0313" target="_blank" rel="noopener noreferrer">liuayueeryuan0313 <span aria-hidden="true">↗</span></a></dd></div><div><dt>Telegram</dt><dd><a class="about-link" href="https://t.me/aweodev" target="_blank" rel="noopener noreferrer">@aweodev <span aria-hidden="true">↗</span></a></dd></div></dl><div class="about-update"><button class="button small" data-action="check-updates">检测更新</button><span class="muted">只检测正式版本</span></div><p class="about-note">非学校官方工具，课程安排以学校公布的信息为准。</p></section>`;}
+function updatePanelContent(){
+ const status=updateChecking?'checking':updateState?.status||'unknown';
+ const current=updateState?.current_version||bootstrap?.version||'—';
+ const latest=updateState?.latest_version;
+ const labels={checking:'正在检测正式版本…',current:'当前已是最新正式版本',available:'发现新版本',error:'暂时无法检测更新',unknown:'尚未检测正式版本'};
+ const detail=updateState?.message||'';
+ return `<div class="about-update-panel" id="about-update-panel"><div class="about-update-copy"><span class="eyebrow">版本更新</span><p class="about-update-status" data-state="${esc(status)}">${esc(labels[status]||labels.unknown)}</p><small>当前版本 v${esc(current)}${latest?` · 最新版本 v${esc(latest)}`:''}</small>${detail?`<small class="about-update-message">${esc(detail)}</small>`:''}</div><div class="about-update-actions"><button class="button small" type="button" data-action="check-updates" ${updateChecking?'disabled':''}>${updateChecking?'检测中…':'检测更新'}</button>${status==='available'&&updateState?.release_url?`<a class="button small primary" href="${esc(updateState.release_url)}" target="_blank" rel="noopener noreferrer">查看发布页 ↗</a>`:''}</div></div>`;
+}
+function refreshAboutUpdatePanel(){const panel=$('#about-update-panel');if(panel)panel.outerHTML=updatePanelContent();}
+function openAboutUpdates(){modal('关于与版本更新',aboutContent());if(!updateState&&!updateChecking)checkUpdates(false);}
+function aboutContent(){return `<section class="panel about-card"><div class="about-identity"><span class="brand-mark" aria-hidden="true"><svg class="brand-symbol" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21c6-2 11-1 16 3 5-4 10-5 16-3v18c-6-2-11-1-16 3-5-4-10-5-16-3Z" fill="currentColor" fill-opacity=".07"/><path d="M24 24v18M12 27c3-.4 5 .1 8 1.7m-8 4.1c3-.4 5 .1 8 1.7m8-5.8c3-1.6 5-2.1 8-1.7m-8 7.5c3-1.6 5-2.1 8-1.7"/><circle cx="24" cy="12" r="4" fill="currentColor" fill-opacity=".16"/><path d="M24 3v2M14.8 7.3l1.6 1.1M33.2 7.3l-1.6-1.1M16 15.5l-1.8.8m17.8-.8 1.8.8"/></svg></span><div><span class="eyebrow">KOMA / ABOUT</span><h2>课间 · KOMA</h2><span class="muted">v${esc(bootstrap?.version||'—')}</span></div></div><p class="about-description">将学校的教学课表与实验课表整理成日历订阅。自动同步安排，让每天的课程清楚、有序。</p><dl class="about-details"><div><dt>构建日期</dt><dd>${esc(buildDateLabel(bootstrap).replace(/^构建(?:于 |日期：)/,''))}</dd></div><div><dt>开发者</dt><dd>安稳</dd></div><div><dt>GitHub</dt><dd><a class="about-link" href="https://github.com/liuayueeryuan0313" target="_blank" rel="noopener noreferrer">liuayueeryuan0313 <span aria-hidden="true">↗</span></a></dd></div><div><dt>Telegram</dt><dd><a class="about-link" href="https://t.me/aweodev" target="_blank" rel="noopener noreferrer">@aweodev <span aria-hidden="true">↗</span></a></dd></div></dl>${updatePanelContent()}<p class="about-note">非学校官方工具，课程安排以学校公布的信息为准。</p></section>`;}
 function buildDateLabel(info){
  const date=info?.build_date?new Date(info.build_date):null;
  if(!date||!Number.isFinite(date.getTime()))return '构建日期：待构建（开发预览）';
@@ -138,26 +152,22 @@ function renderAppMetadata(info){
  $$('.auth-build-info').forEach(el=>el.hidden=false);
 }
 function updateVersionBadge(){
- const version=bootstrap?.version||'—',button=$('#version-status');
+ const version=bootstrap?.version||'—';
  $$('[data-app-version]').forEach(el=>el.textContent='v'+version);
- if(!button)return;
  const state=updateChecking?'checking':updateState?.status||'unknown';
- button.dataset.state=state;button.disabled=updateChecking;button.setAttribute('aria-busy',String(updateChecking));
+ for(const button of $$('.version-pill[data-action="open-about-updates"]')){
+ button.dataset.state=state;button.setAttribute('aria-busy',String(updateChecking));
  $('.version-update-label',button).hidden=state!=='available';
- button.setAttribute('aria-label',`当前版本 v${version}，${state==='available'?'有新版本可更新':state==='current'?'已是最新正式版本':state==='checking'?'正在检测更新':'点击检测更新'}`);
- button.title=state==='available'?`发现 v${updateState.latest_version}，点击查看`:state==='current'?'已是最新正式版本，点击重新检测':'点击检测更新';
+ button.setAttribute('aria-label',`关于与版本更新，当前版本 v${version}，${state==='available'?'有新版本可更新':state==='current'?'已是最新正式版本':state==='checking'?'正在检测更新':'点击查看详情'}`);
+ button.title=state==='available'?`发现 v${updateState.latest_version}，点击查看详情`:state==='current'?'已是最新正式版本，点击查看详情':'查看关于与版本更新';
+ }
 }
-async function checkUpdates(showResult=true){
+async function checkUpdates(){
  if(updateChecking)return;
- updateChecking=true;updateVersionBadge();
- try{
-  updateState=await api('/api/updates');
-  if(showResult){
-   const status=updateState.status,title=status==='available'?'发现新版本':status==='current'?'当前已是最新正式版本':'暂时无法检测更新';
-   modal(title,`<p>当前版本：v${esc(updateState.current_version)}${updateState.latest_version?`<br>最新正式版本：v${esc(updateState.latest_version)}`:''}</p>${updateState.message?`<p>${esc(updateState.message)}</p>`:''}${status==='available'?'<p>请查看发布说明后再决定更新。</p>':''}`,`<a class="button ${status==='available'?'primary':''}" href="${esc(updateState.release_url)}" target="_blank" rel="noopener noreferrer">查看发布页 ↗</a>`);
-  }
- }catch(error){updateState={status:'error'};if(showResult)toast(error.message,true);}
- finally{updateChecking=false;updateVersionBadge();}
+ updateChecking=true;updateVersionBadge();refreshAboutUpdatePanel();
+ try{updateState=await api('/api/updates');}
+ catch(error){updateState={status:'error',message:error.message};}
+ finally{updateChecking=false;updateVersionBadge();refreshAboutUpdatePanel();}
 }
 function renderAvatar(){
  const avatar=$('#account-avatar');if(!avatar||!data)return;
@@ -207,7 +217,7 @@ function lessonEditor(row=null){
  const periods=[...new Set([...Object.keys(c.periods||{}),...Object.keys(c.period_ranges||{}).flatMap(range=>range.split('-'))].map(Number))].sort((a,b)=>a-b);
  const periodOptions=selected=>periods.map(n=>`<option value="${n}" ${Number(selected)===n?'selected':''}>第 ${n} 节</option>`).join('');
  const input=(key,label,value='',required=false)=>`<label>${label}<input name="${key}" value="${esc(value)}" maxlength="200" ${required?'required':''}></label>`;
- modal(row?'编辑本次课程':'手动新建课程',`${lessonComparison(row)}<form id="lesson-form" class="form-stack" data-revision="${esc(row?.revision||'')}" data-id="${esc(row?.occurrenceId||'')}" data-kind="${kind}"><p class="field-help">保存后更新课表与 ICS 订阅。本次手动修改会保留，未修改的字段继续跟随学校更新。</p><label>课表类型<select name="kind" ${row?'disabled':''}><option value="teaching" ${kind==='teaching'?'selected':''}>教学</option><option value="lab" ${kind==='lab'?'selected':''}>实验</option></select></label>${input('name','课程名称',row?.name||'',true)}<div class="field-row"><label>教学周<select name="week">${options(c.maxWeekNumber,row?.week||week)}</select></label><label>星期<select name="weekday">${Array.from({length:7},(_,i)=>`<option value="${i+1}" ${Number(row?.weekday||1)===i+1?'selected':''}>星期${'一二三四五六日'[i]}</option>`).join('')}</select></label></div><div class="field-row"><label>开始节次<select name="startPeriod">${periodOptions(row?.startPeriod||periods[0])}</select></label><label>结束节次<select name="endPeriod">${periodOptions(row?.endPeriod||periods[1]||periods[0])}</select></label></div>${input('location','地点',row?.location||'')}${input('teacher','教师',row?.teacher||'')}<fieldset id="lesson-lab-fields" ${kind==='lab'?'':'hidden disabled'}>${input('courseName','实验所属课程',row?.courseName||'')}${input('projectName','实验项目',row?.projectName||'')}</fieldset><p class="field-help">起止时间按当前学校作息计算，使用北京时间。</p><button type="submit" class="button primary">保存课程</button></form>`);
+ modal(row?'编辑本次课程':'手动新建课程',`${lessonComparison(row)}<form id="lesson-form" class="form-stack" data-revision="${esc(row?.revision||'')}" data-id="${esc(row?.occurrenceId||'')}" data-kind="${kind}"><p class="field-help">保存后更新课表与 ICS 订阅。本次手动修改会保留，未修改的字段继续跟随学校更新。</p><label>课表类型<select name="kind" ${row?'disabled':''}><option value="teaching" ${kind==='teaching'?'selected':''}>教学</option><option value="lab" ${kind==='lab'?'selected':''}>实验</option></select></label>${input('name','课程名称',row?.name||'',true)}<div class="field-row"><label>教学周<select name="week">${options(c.maxWeekNumber,row?.week||week)}</select></label><label>星期<select name="weekday">${Array.from({length:7},(_,i)=>`<option value="${i+1}" ${Number(row?.weekday||1)===i+1?'selected':''}>星期${'一二三四五六日'[i]}</option>`).join('')}</select></label></div><div class="field-row"><label>开始节次<select name="startPeriod">${periodOptions(row?.startPeriod||periods[0])}</select></label><label>结束节次<select name="endPeriod">${periodOptions(row?.endPeriod||periods[1]||periods[0])}</select></label></div>${input('location','地点',row?.location||'')}${input('teacher','教师',row?.teacher||'')}<fieldset id="lesson-lab-fields" ${kind==='lab'?'':'hidden disabled'}>${input('courseName','实验所属课程',row?.courseName||'')}${input('projectName','实验项目',row?.projectName||'')}</fieldset><p class="field-help">起止时间按当前学校作息计算，使用北京时间。</p><button type="submit" class="button primary">保存课程</button></form>`,row?`<button type="button" class="button danger" data-action="delete-lesson" data-kind="${kind}" data-id="${esc(row.occurrenceId)}" data-revision="${esc(row.revision||'')}">删除课程</button>`:'',true,row?'lesson-delete-actions':'');
  $$('.lesson[aria-expanded],.lesson-create[aria-expanded]').forEach(button=>button.setAttribute('aria-expanded',String(button.dataset.action==='new-lesson'?editingLessonKey==='new':editingLessonKey===button.dataset.kind+':'+button.dataset.id)));
 }
 document.addEventListener('close',event=>{
@@ -252,7 +262,7 @@ document.addEventListener('click',async event=>{
   if(target.dataset.subscriptionTab){subscriptionTab=target.dataset.subscriptionTab;render();$('#'+subscriptionTab+'-tab').focus();return;}
   if(target.dataset.auth)return setAuthMode(target.dataset.auth);
   if(target.dataset.page)return await navigate(target.dataset.page);
-  if(target.dataset.action==='about')return modal('关于课间',aboutContent());
+  if(target.dataset.action==='open-about-updates')return openAboutUpdates();
   if(target.dataset.kindFilter){kindFilter=target.dataset.kindFilter;return render();}
   if(target.dataset.logFilter){logFilter=target.dataset.logFilter;return render();}
   const action=target.dataset.action;
@@ -268,6 +278,11 @@ document.addEventListener('click',async event=>{
   if(action==='check-updates')return await checkUpdates();
   if(action==='new-lesson')return lessonEditor();
   if(action==='edit-lesson'){const row=data.occurrences.find(r=>r.kind===target.dataset.kind&&r.occurrenceId===target.dataset.id);if(!row)throw Error('课程已变更，请刷新后再编辑');return lessonEditor(row);}
+  if(action==='delete-lesson')return modal('删除这次课程安排？','<p>删除后会从课表和日历订阅中移除，无法撤销。下次学校同步时也会保留这项删除。</p>',`<button type="button" class="button danger" data-action="confirm-delete-lesson" data-kind="${target.dataset.kind}" data-id="${target.dataset.id}" data-revision="${target.dataset.revision}">确认删除</button>`);
+  if(action==='confirm-delete-lesson'){
+   await api('/api/occurrences/'+target.dataset.kind+'/'+target.dataset.id,{method:'DELETE',body:JSON.stringify({revision:target.dataset.revision})});
+   editingLessonKey='';$('#modal').close();await refresh(true);return toast('课程已删除，课表和订阅内容已更新');
+  }
   if(action==='restore-lesson'){
    const row=data.occurrences.find(r=>r.kind===target.dataset.kind&&r.occurrenceId===target.dataset.id);
    return modal('恢复学校安排？',`<p>${row?.schoolMissing?'学校当前没有可对应的安排，恢复后将移除此课次的手动覆盖。':'将撤销本次课程的全部手动修改，使用学校最新安排。'}</p>`,`<button class="button primary" data-action="confirm-restore-lesson" data-kind="${target.dataset.kind}" data-id="${target.dataset.id}" data-revision="${target.dataset.revision}">确认恢复</button>`);

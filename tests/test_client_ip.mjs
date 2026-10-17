@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 
 function display(intl=Intl){
  const nodes=new Map();
- const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{setAttribute(name,value){this[name]=value;}});return nodes.get(selector);};
+ const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{setAttribute(name,value){this[name]=value;},removeAttribute(name){delete this[name];}});return nodes.get(selector);};
  const context=vm.createContext({document:{querySelector:node,querySelectorAll:()=>[],addEventListener:()=>{}},Intl:intl,setInterval:()=>{},setTimeout:()=>{},clearTimeout:()=>{}});
  const source=readFileSync(new URL('../web/app.js',import.meta.url),'utf8').replace(/^boot\(\);\s*$/m,'');
  vm.runInContext(source,context);
@@ -29,6 +29,9 @@ test('both views show full IPv6 in text and tooltip, with green protocol class',
   assert.match(badge.innerHTML,/tag-v6/);
   assert.match(badge.innerHTML,/2001:db8:1234:5678:90ab:cdef:1234:5678/);
   assert.match(badge.title,/🇨🇳 中国/);
+  assert.equal(badge.href,'https://ip.net.coffee/ip/2001%3Adb8%3A1234%3A5678%3A90ab%3Acdef%3A1234%3A5678');
+  assert.equal(badge.target,'_blank');
+  assert.equal(badge.rel,'noopener noreferrer');
  }
  assert.equal(node('#auth-ip-badge').innerHTML,node('#sidebar-ip-badge').innerHTML);
 });
@@ -38,9 +41,11 @@ test('IPv4 and missing location work, and empty IP hides stale badges',()=>{
  vm.runInContext('renderClientIp({client_ip:"192.0.2.1",country:"XX"})',context);
  assert.match(node('#auth-ip-badge').innerHTML,/tag-v4/);
  assert.doesNotMatch(node('#auth-ip-badge').innerHTML,/ip-country/);
+ assert.equal(node('#auth-ip-badge').href,'https://ip.net.coffee/ip/192.0.2.1');
  vm.runInContext('renderClientIp({})',context);
  assert.equal(node('#auth-ip-badge').hidden,true);
  assert.equal(node('#sidebar-ip-badge').innerHTML,'');
+ assert.equal(node('#auth-ip-badge').href,undefined);
 });
 
 test('untrusted bootstrap strings cannot insert markup or protocol attributes',()=>{
