@@ -7,15 +7,15 @@ import os
 import re
 import secrets
 import sqlite3
-from recovery import QUESTIONS,FAILURE,DUMMY_HASH,prepare_recovery,public_questions,check_answers
+from .recovery import QUESTIONS,FAILURE,DUMMY_HASH,prepare_recovery,public_questions,check_answers
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from school_profiles import prepare_school_config,prepare_clock_config,school_changed
+from .school_profiles import prepare_school_config,prepare_clock_config,school_changed
 from adapters.scripts.compile_calendar import compile_calendar,reminder_settings
 
-ROOT=Path(__file__).resolve().parent
+ROOT=Path(__file__).resolve().parents[1]
 KINDS=('teaching','lab','combined')
 DISCLAIMER_VERSION='2026-10-16'
 DISCLAIMER='课间是由安稳开发的非学校官方课表整理工具。仅使用本人有权访问的学校账户；课程、调课、实验安排以学校公布的信息为准。同步可能受认证、网络或接口变化影响，请核对重要安排。本工具不保证日历客户端的刷新时效，也不替代学校通知。保存凭据用于本人授权的同步，可随时删除；请勿向他人分享账户或私密订阅链接。'
@@ -72,7 +72,7 @@ class Store:
             ''')
             connection.execute("UPDATE sync_state SET state='error',warning='服务重启中断了上次任务；已保留最近成功课表' WHERE state IN ('running','queued')")
             connection.execute("UPDATE platform_checks SET state='error',message='服务重启中断了检查，请重新操作' WHERE state='running'")
-        from calendar_layers import migrate_legacy
+        from .calendar_layers import migrate_legacy
         migrate_legacy(self)
         self.setup_path=self.directory/'setup-token'
         if not self.has_admin() and not self.setup_path.exists():
@@ -131,7 +131,7 @@ class Store:
         with self.db() as c:row=c.execute('SELECT image FROM avatars WHERE user_id=?',(user_id,)).fetchone()
         return bytes(row['image']) if row else None
     def save_avatar(self,user_id,value):
-        from avatars import decode_avatar
+        from .avatars import decode_avatar
         image=decode_avatar(value) if value is not None else None
         with self.db() as c:
             if image is None:c.execute('DELETE FROM avatars WHERE user_id=?',(user_id,))
@@ -246,7 +246,7 @@ class Store:
                 for kind in KINDS:self._rotate(c,user_id,kind)
             elif old['config']['term']!=config['term']:
                 c.execute('DELETE FROM calendars WHERE user_id=?',(user_id,))
-                from calendar_layers import rebuild
+                from .calendar_layers import rebuild
                 rebuild(c,user_id,config)
             elif reminder_changed:
                 # Rewrite every existing feed atomically from saved occurrences;
@@ -290,7 +290,7 @@ class Store:
             row=c.execute('SELECT * FROM calendars WHERE user_id=? AND kind=?',(user_id,kind)).fetchone();return dict(row) if row else None
     def put_calendar(self,user_id,kind,snapshot,normalized,ics,metrics):
         if kind in ('teaching','lab'):
-            from calendar_layers import publish_school
+            from .calendar_layers import publish_school
             return publish_school(self,user_id,kind,snapshot,normalized)
         with self.db() as c:c.execute('INSERT OR REPLACE INTO calendars VALUES(?,?,?,?,?,?,?,?)',(user_id,kind,ics,digest(ics),json_text(snapshot),json_text(normalized),json_text(metrics),now()))
     def calendar_for_token(self,token,kind):

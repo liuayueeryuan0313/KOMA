@@ -7,9 +7,9 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from core import Store
-from server import CalendarServer
-from sync import SyncManager
+from koma.core import Store
+from koma.server import CalendarServer
+from koma.sync import SyncManager
 from test_service import FakeBridge
 
 
@@ -33,7 +33,7 @@ class StaticAssetTests(unittest.TestCase):
                 return urlopen(Request(base + path, method=method, headers=headers or {}), timeout=5)
 
             try:
-                with patch('server.ROOT', root):
+                with patch('koma.server.ROOT', root):
                     for path in ['/style.css', '/app.js', '/mascot.svg']:
                         with request(path) as response:
                             content = response.read()

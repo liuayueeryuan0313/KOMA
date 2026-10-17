@@ -57,7 +57,7 @@ jobs:
           docker tag "$IMAGE" "$LOCAL_IMAGE"
           docker run --rm --platform "linux/$ARCHITECTURE" --entrypoint python \
             -e EXPECTED_VERSION="$VERSION" "$LOCAL_IMAGE" \
-            -c 'import os; from app_version import VERSION,BUILD_DATE; assert VERSION==os.environ["EXPECTED_VERSION"]; assert BUILD_DATE; print("Verified application version:",VERSION,"build:",BUILD_DATE)'
+            -c 'import os; from importlib import import_module; from importlib.util import find_spec; info=import_module("koma.app_version" if find_spec("koma") else "app_version"); assert info.VERSION==os.environ["EXPECTED_VERSION"]; assert info.BUILD_DATE; print("Verified application version:",info.VERSION,"build:",info.BUILD_DATE)'
           CONTAINER="koma-release-check-$ARCHITECTURE"
           trap 'docker rm -f "$CONTAINER" >/dev/null 2>&1 || true' EXIT
           docker run -d --platform "linux/$ARCHITECTURE" --name "$CONTAINER" \

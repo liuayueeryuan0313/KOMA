@@ -4,12 +4,12 @@ import re
 import tempfile
 import unittest
 
-from core import Store
-from calendar_edit import save_occurrence
-from calendar_layers import resolve_occurrence
+from koma.core import Store
+from koma.calendar_edit import save_occurrence
+from koma.calendar_layers import resolve_occurrence
 from adapters.scripts.compile_calendar import normalize,compile_calendar
 from test_service import teaching,FakeBridge
-from sync import SyncManager
+from koma.sync import SyncManager
 
 
 class CalendarLayerTests(unittest.TestCase):
@@ -152,7 +152,7 @@ class CalendarLayerTests(unittest.TestCase):
         snapshot=teaching(config);snapshot['rows']=snapshot['rows'][:1]
         snapshot['rows'][0].update(manual=True,kcdm='teaching:manual:legacy',kcmc='旧版手动课程')
         normalized=normalize(snapshot,config);ics,metrics=compile_calendar(normalized,config)
-        from core import digest,json_text,now
+        from koma.core import digest,json_text,now
         with self.store.db() as c:
             c.execute('INSERT INTO calendars VALUES(?,?,?,?,?,?,?,?)',(other,'teaching',ics,digest(ics),json_text(snapshot),json_text(normalized),json_text(metrics),now()))
         reloaded=Store(self.temp.name)

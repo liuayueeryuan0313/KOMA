@@ -3,9 +3,9 @@ import tempfile
 import threading
 import unittest
 from urllib.request import Request,urlopen
-from core import Store
-from sync import SyncManager
-from server import CalendarServer
+from koma.core import Store
+from koma.sync import SyncManager
+from koma.server import CalendarServer
 from test_service import FakeBridge
 
 class DebugTests(unittest.TestCase):

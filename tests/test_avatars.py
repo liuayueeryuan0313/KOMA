@@ -7,10 +7,10 @@ import unittest
 import zlib
 from urllib.error import HTTPError
 from urllib.request import Request,urlopen
-from avatars import decode_avatar
-from core import Store
-from server import CalendarServer
-from sync import SyncManager
+from koma.avatars import decode_avatar
+from koma.core import Store
+from koma.server import CalendarServer
+from koma.sync import SyncManager
 
 
 def png(width=32,height=32,pixels=None):

@@ -7,7 +7,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from core import ROOT, now, later, json_text
+from .core import ROOT, now, later, json_text
 
 sys.path.insert(0,str(ROOT/'adapters/scripts'))
 from compile_calendar import normalize,compile_calendar
@@ -223,7 +223,7 @@ class SyncManager:
         snapshot=convert_lab(response['payload'],settings['config'])
         return snapshot,response['payload'].get('identity',{}),'lab-cas',''
     def _rebuild_combined(self,user_id,config):
-        from calendar_layers import rebuild
+        from .calendar_layers import rebuild
         with self.store.db() as c:
             c.execute('BEGIN IMMEDIATE');rebuild(c,user_id,config)
     def _job(self,user_id,kinds,initialize_app):

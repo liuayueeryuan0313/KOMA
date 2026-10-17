@@ -9,10 +9,10 @@ from urllib.error import HTTPError
 from urllib.request import Request,urlopen
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from core import Store,now
-from sync import SyncManager,SourceError
-from server import CalendarServer
-from school_profiles import DEFAULTS,effective_school,prepare_school_config
+from koma.core import Store,now
+from koma.sync import SyncManager,SourceError
+from koma.server import CalendarServer
+from koma.school_profiles import DEFAULTS,effective_school,prepare_school_config
 
 PASSWORD='Test-account-password-42'
 def teaching(config):

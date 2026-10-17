@@ -5,7 +5,7 @@ from datetime import datetime,timezone
 from pathlib import Path
 
 VERSION='0.4.2'
-BUILD_INFO_PATH=Path(__file__).with_name('build-info.json')
+BUILD_INFO_PATH=Path(__file__).resolve().parents[1]/'build-info.json'
 
 
 def normalize_build_date(value):

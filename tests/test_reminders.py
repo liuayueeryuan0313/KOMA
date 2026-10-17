@@ -3,8 +3,8 @@ import re
 import tempfile
 import unittest
 
-from core import Store, json_text
-from calendar_edit import save_occurrence
+from koma.core import Store, json_text
+from koma.calendar_edit import save_occurrence
 from adapters.scripts.compile_calendar import compile_calendar, validate_calendar
 
 
@@ -75,7 +75,7 @@ class ReminderTests(unittest.TestCase):
 
     def test_preferences_are_isolated_and_used_by_future_school_sync(self):
         from test_service import FakeBridge
-        from sync import SyncManager
+        from koma.sync import SyncManager
         other = self.store.create_user('other-reminders', 'Testing-password-42')['id']
         save_occurrence(self.store, other, 'teaching', self.values)
         before = self.store.calendar(other, 'teaching')

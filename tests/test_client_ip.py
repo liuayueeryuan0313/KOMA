@@ -5,9 +5,9 @@ import unittest
 from email.message import Message
 from urllib.request import Request, urlopen
 
-from core import Store
-from server import CalendarServer, Handler
-from sync import SyncManager
+from koma.core import Store
+from koma.server import CalendarServer, Handler
+from koma.sync import SyncManager
 
 
 class ClientIpTests(unittest.TestCase):

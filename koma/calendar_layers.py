@@ -4,7 +4,7 @@ import secrets
 from collections import defaultdict
 from datetime import date, timedelta
 
-from core import digest, json_text, now
+from .core import digest, json_text, now
 from adapters.scripts.compile_calendar import normalize, compile_calendar, course_teacher
 
 TIME_FIELDS = ('week', 'weekday', 'startPeriod', 'endPeriod')

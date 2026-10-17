@@ -8,7 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from app_version import VERSION
+from .app_version import VERSION
 
 REPOSITORY = 'liuayueeryuan0313/KOMA'
 RELEASES_URL = 'https://github.com/' + REPOSITORY + '/releases'

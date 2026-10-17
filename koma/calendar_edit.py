@@ -2,9 +2,9 @@
 import json
 import secrets
 from datetime import date, timedelta
-from core import json_text, now
+from .core import json_text, now
 from adapters.scripts.compile_calendar import normalize
-from calendar_layers import (TIME_FIELDS, TEXT_FIELDS, ensure_layers, effective_rows,
+from .calendar_layers import (TIME_FIELDS, TEXT_FIELDS, ensure_layers, effective_rows,
                              rebuild, assert_editable)
 
 

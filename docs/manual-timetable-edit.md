@@ -20,9 +20,9 @@
 
 ## 代码与验证
 
-- `calendar_edit.py`：单次课程校验、当前快照修改、课表与聚合订阅事务保存。
-- `core.py`：向课表界面提供用于定位课次的内容标识。
-- `server.py`：`POST /api/occurrences/{teaching|lab}` 和 `PUT /api/occurrences/{teaching|lab}/{occurrenceId}`。
+- `koma/calendar_edit.py`：单次课程校验、当前快照修改、课表与聚合订阅事务保存。
+- `koma/core.py`：向课表界面提供用于定位课次的内容标识。
+- `koma/server.py`：`POST /api/occurrences/{teaching|lab}` 和 `PUT /api/occurrences/{teaching|lab}/{occurrenceId}`。
 - `web/app.js`、`web/style.css`：新建入口、逐次编辑按钮及表单。
 - 新增 Python 测试验证持久化、已拉取教学和实验课编辑、订阅更新、非法输入回滚、用户隔离及认证保护；新增 Node 测试验证编辑表单、转义及类型切换。
 

@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 ca-c
     && mkdir /data && chown komama:komama /data
 COPY --chown=komama:komama . .
 ARG KOMA_BUILD_DATE
-RUN python -c "from app_version import write_build_info; write_build_info()"
+RUN python -c "from koma.app_version import write_build_info; write_build_info()"
 USER komama
 VOLUME ["/data"]
 EXPOSE 8080

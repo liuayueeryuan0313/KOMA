@@ -6,10 +6,10 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.request import urlopen
 
-from app_version import VERSION,read_build_date,write_build_info
-from core import Store
-from server import CalendarServer
-from sync import SyncManager
+from koma.app_version import VERSION,read_build_date,write_build_info
+from koma.core import Store
+from koma.server import CalendarServer
+from koma.sync import SyncManager
 
 
 class BuildInfoTests(unittest.TestCase):
@@ -38,11 +38,11 @@ class BuildInfoTests(unittest.TestCase):
         docker=(root/'Dockerfile').read_text()
         self.assertIn(f'org.opencontainers.image.version="{VERSION}"',docker)
         self.assertIn('ARG KOMA_BUILD_DATE',docker)
-        self.assertIn('RUN python -c "from app_version import write_build_info; write_build_info()"',docker)
+        self.assertIn('RUN python -c "from koma.app_version import write_build_info; write_build_info()"',docker)
         for name in ['.gitignore','.dockerignore']:self.assertIn('build-info.json',(root/name).read_text())
 
     def test_login_bootstrap_and_health_share_version_and_stored_build_date(self):
-        with tempfile.TemporaryDirectory() as directory,patch('server.BUILD_DATE','2026-10-16T10:00:00Z'):
+        with tempfile.TemporaryDirectory() as directory,patch('koma.server.BUILD_DATE','2026-10-16T10:00:00Z'):
             store=Store(directory);manager=SyncManager(store)
             server=CalendarServer(('127.0.0.1',0),store,manager)
             thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()

@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-DEFAULTS=json.loads((Path(__file__).parent/'adapters/school-defaults.json').read_text(encoding='utf-8'))
+DEFAULTS=json.loads((Path(__file__).resolve().parents[1]/'adapters/school-defaults.json').read_text(encoding='utf-8'))
 URL_FIELDS=('app_origin','app_h5_base','jw_base','lab_base','sso_base')
 
 def validate_url(value,field):

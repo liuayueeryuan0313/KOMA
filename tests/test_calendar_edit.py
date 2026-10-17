@@ -6,10 +6,10 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from core import Store
-from server import CalendarServer
-from sync import SyncManager
-from calendar_edit import delete_occurrence, save_occurrence
+from koma.core import Store
+from koma.server import CalendarServer
+from koma.sync import SyncManager
+from koma.calendar_edit import delete_occurrence, save_occurrence
 
 
 class CalendarEditTests(unittest.TestCase):
@@ -58,7 +58,7 @@ class CalendarEditTests(unittest.TestCase):
         delete_occurrence(self.store, self.user, 'teaching', school_row['occurrenceId'], school_row['revision'])
         remaining = self.store.dashboard(self.user, '')['occurrences']
         self.assertNotIn(school_row['occurrenceId'], {r['occurrenceId'] for r in remaining})
-        from calendar_layers import publish_school
+        from koma.calendar_layers import publish_school
         publish_school(self.store, self.user, 'teaching', source, normalized)
         remaining = self.store.dashboard(self.user, '')['occurrences']
         self.assertNotIn(school_row['occurrenceId'], {r['occurrenceId'] for r in remaining})

@@ -5,10 +5,10 @@ import unittest
 from urllib.error import HTTPError
 from urllib.request import Request,urlopen
 
-from core import Store
-from recovery import FAILURE,prepare_recovery
-from server import CalendarServer
-from sync import SyncManager
+from koma.core import Store
+from koma.recovery import FAILURE,prepare_recovery
+from koma.server import CalendarServer
+from koma.sync import SyncManager
 
 PASSWORD='Original-test-password-42'
 NEW_PASSWORD='Replacement-test-password-56'

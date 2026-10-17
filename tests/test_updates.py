@@ -6,8 +6,8 @@ from urllib.error import HTTPError,URLError
 from urllib.request import urlopen
 from unittest.mock import Mock
 
-from app_version import VERSION
-from updates import UpdateChecker,is_newer,LATEST_API,RELEASES_URL
+from koma.app_version import VERSION
+from koma.updates import UpdateChecker,is_newer,LATEST_API,RELEASES_URL
 
 
 class Reply:
@@ -64,9 +64,9 @@ class UpdateTests(unittest.TestCase):
                 self.assertEqual(UpdateChecker(opener=Mock(return_value=response)).check()['status'],'error')
 
     def test_update_endpoint_requires_login_and_does_not_touch_calendars(self):
-        from core import Store
-        from server import CalendarServer
-        from sync import SyncManager
+        from koma.core import Store
+        from koma.server import CalendarServer
+        from koma.sync import SyncManager
         from urllib.request import Request
         with tempfile.TemporaryDirectory() as directory:
             store=Store(directory);user=store.create_user('update-test','Testing-password-42')

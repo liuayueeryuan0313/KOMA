@@ -1,6 +1,10 @@
 # 实现与接口
 
-`server.py` 提供静态 WebUI、账户 REST API 与私密 ICS；`core.py` 管理 SQLite、加密、权限和持久化；`sync.py` 执行手动任务、定时任务和教学故障转移；`adapters/school_bridge.mjs` 通过标准输入接收凭据，调用学校适配器。凭据不放在命令行参数，不把上游原始错误或响应直接写入日志。
+`koma/server.py` 提供静态 WebUI、账户 REST API 与私密 ICS；`koma/core.py` 管理 SQLite、加密、权限和持久化；`koma/sync.py` 执行手动任务、定时任务和教学故障转移；`adapters/school_bridge.mjs` 通过标准输入接收凭据，调用学校适配器。凭据不放在命令行参数，不把上游原始错误或响应直接写入日志。
+
+后端源码统一放在 `koma/` 包中，前端、学校适配器、测试、维护脚本和说明分别放在 `web/`、`adapters/`、`tests/`、`scripts/` 和 `docs/`。
+根目录的 `server.py` 仅作为兼容启动入口，现有 `python server.py`、Windows 启动脚本和 Docker 启动命令保持可用，也可通过 `python -m koma` 启动。
+默认运行数据仍在项目根目录的 `data/`，镜像构建信息仍在根目录的 `build-info.json`；设置 `DATA_DIR` 时继续使用指定目录。
 
 ## 三条接入链
 
@@ -61,6 +65,6 @@ App 重新登录仅通过显式授权入口。学校身份优先读取真实姓�
 
 ## v0.3.0 学校配置
 
-`school_profiles.py` 校验每用户学校目的地址、参数与作息。学校切换先清除旧凭据与日历、轮换私密链接；临时测试不保存配置或沿用旧学校秘密。Node `school-profile.mjs` 提供默认配置、基址拼接、教务请求配置及受限网络传输；自定义连接固定已验证的公开 DNS 地址，不自动跟随跨域重定向。App 登录、H5 拉取、正方登录与课表、实验与 CAS 均使用当前学校配置。不同协议不通过改域名自动适配。
+`koma/school_profiles.py` 校验每用户学校目的地址、参数与作息。学校切换先清除旧凭据与日历、轮换私密链接；临时测试不保存配置或沿用旧学校秘密。Node `school-profile.mjs` 提供默认配置、基址拼接、教务请求配置及受限网络传输；自定义连接固定已验证的公开 DNS 地址，不自动跟随跨域重定向。App 登录、H5 拉取、正方登录与课表、实验与 CAS 均使用当前学校配置。不同协议不通过改域名自动适配。
 
 前端 ICS / CalDAV 标签是显示切换。CalDAV 仅占位，没有服务器端 DAV 功能。
