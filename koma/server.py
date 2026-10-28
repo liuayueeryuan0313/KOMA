@@ -19,6 +19,7 @@ from .calendar_edit import delete_occurrence, save_occurrence
 from .calendar_layers import resolve_occurrence
 from .app_version import VERSION,BUILD_DATE
 from .updates import UpdateChecker
+from .widget_api import WidgetAPI
 from .recovery import QUESTIONS
 from .school_profiles import prepare_school_config,prepare_clock_config,school_changed
 
@@ -28,7 +29,7 @@ class APIError(Exception):
 class CalendarServer(ThreadingHTTPServer):
     daemon_threads=True
     def __init__(self,address,store,manager,public_url=None):
-        self.store=store;self.manager=manager;self.updates=UpdateChecker()
+        self.store=store;self.manager=manager;self.updates=UpdateChecker();self.widget=WidgetAPI(store)
         self.public_url=(public_url or os.getenv('PUBLIC_URL') or f'http://localhost:{address[1]}').rstrip('/')
         parsed=urlsplit(self.public_url)
         if parsed.scheme not in ('http','https') or not parsed.netloc or parsed.path not in ('','/') or parsed.query or parsed.fragment:raise ValueError('PUBLIC_URL must be an HTTP(S) origin without a path')
@@ -133,6 +134,12 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/account/avatar':
                 user=self.user();image=store.avatar(user['id'])
                 return self.response(200 if image else 204,image or b'','image/png')
+            if path=='/api/widget/v1/timetable':
+                user_id=self.server.widget.authenticate(self.headers.get('Authorization'))
+                if not user_id:raise APIError(401,'小组件凭证无效或已撤销')
+                return self.response(200,self.server.widget.timetable(user_id,urlsplit(self.path).query))
+            if path=='/api/widget/token':
+                user=self.user();return self.response(200,self.server.widget.status(user['id']))
             if path=='/api/session':
                 user=self.user();return self.response(200,{'user':store.user(user['id']),'csrf':user['csrf']})
             if path=='/api/updates':
@@ -176,6 +183,11 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(token,str) or not token:raise APIError(403,'请填写一次性管理员设置码')
                 return self.session_response(store.create_user(data.get('username',''),data.get('password',''),'admin',token))
             user=self.user(mutating=True)
+            if path=='/api/widget/token' and method=='POST':
+                action=data.get('action')
+                if action=='rotate':return self.response(200,self.server.widget.rotate(user['id']))
+                if action=='revoke':return self.response(200,self.server.widget.revoke(user['id']))
+                raise APIError(400,'请选择生成、更换或撤销小组件凭证')
             if path=='/api/debug' and method=='PUT':
                 store.set_debug_source_ip(user['id'],data.get('show_source_ip'))
                 return self.response(200,{'ok':True})

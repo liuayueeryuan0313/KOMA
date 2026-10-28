@@ -32,6 +32,7 @@ $$('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));
 let lastAnimatedPage='',registrationBusy=false;
 let updateState=null,updateChecking=false;
 let editingLessonKey='';
+let widgetStatus=null,widgetError='',widgetBusy=false,widgetRequest=0;
 let csrf='',data=null,bootstrap=null,page='overview',authMode='login',week=1,kindFilter='all',logFilter='school',subscriptionTab='ics',adminUsers=[],polling=false;
 const labels={overview:'我的课间',timetable:'课表一览',subscriptions:'订阅日历',logs:'同步记录',settings:'账户与同步',debug:'调试',admin:'用户管理'};
 const kindNames={teaching:'教学课表',lab:'实验课表',combined:'聚合课表',account:'账户设置',admin:'用户管理'};
@@ -60,14 +61,14 @@ async function api(path,options={}){
 function modal(title,body,actions,closable=true,actionsClass=''){$('#modal-content').innerHTML=`<h2 id="modal-title">${esc(title)}</h2>${body}<div class="dialog-actions ${esc(actionsClass)}">${closable?'<button class="button" data-action="close-modal">关闭</button>':''}${actions||''}</div>`;$('#modal').showModal();enterEffect($('#modal'),[{opacity:0,transform:'translateY(12px) scale(.98)'},{opacity:1,transform:'translateY(0) scale(1)'}],{duration:230});}
 function disclaimer(firstUse=false){modal('使用说明与免责声明',`${firstUse?'<p class="panel-description">首次使用课间，请先阅读以下说明。</p>':''}<p>${esc(bootstrap.disclaimer)}</p><p style="margin-top:17px;font-size:10px">版本 ${esc(bootstrap.disclaimer_version)} · 开发者 安稳 · <a class="credit-link" href="https://github.com/liuayueeryuan0313" target="_blank" rel="noopener noreferrer" aria-label="安稳的 GitHub，另开窗口">© 2026 安稳 <span aria-hidden="true">↗</span></a>，版权所有。</p>`,firstUse?'<button class="button primary" data-action="ack-disclaimer">我已阅读，继续使用</button>':'',!firstUse);}
 function maybeFirstUseNotice(){let seen=false;try{seen=localStorage.getItem('koma.disclaimer.version')===bootstrap.disclaimer_version;}catch{}if(!seen)disclaimer(true);}
-function showAuth(){csrf='';$('#workspace').hidden=true;$('#auth').hidden=false;$('#loading').hidden=true;$('#setup-tab').hidden=!bootstrap.setup_required;setAuthMode('login');lastAnimatedPage='';enterEffect($('.auth-story'),null,{duration:420});enterEffect($('.auth-box'),null,{duration:340,delay:60,fill:'backwards'});document.dispatchEvent?.(new Event('koma:render'));}
+function showAuth(){csrf='';widgetRequest++;widgetStatus=null;widgetError='';widgetBusy=false;if($('#widget-token-secret')){$('#modal').close();clearWidgetSecret();}$('#workspace').hidden=true;$('#auth').hidden=false;$('#loading').hidden=true;$('#setup-tab').hidden=!bootstrap.setup_required;setAuthMode('login');lastAnimatedPage='';enterEffect($('.auth-story'),null,{duration:420});enterEffect($('.auth-box'),null,{duration:340,delay:60,fill:'backwards'});document.dispatchEvent?.(new Event('koma:render'));}
 function setAuthMode(mode){const changed=authMode!==mode;authMode=mode;$$('[data-auth]').forEach(button=>{button.classList.toggle('active',button.dataset.auth===mode);button.setAttribute('aria-selected',button.dataset.auth===mode)});$('#auth-title').textContent=mode==='login'?'很高兴见到你。':mode==='register'?'给日常，一本新笔记。':'从这里开始。';$('#auth-description').textContent=mode==='setup'?'创建首个管理员账户。':'登录账户后，可配置自己的学校课表。';$('#auth-submit').innerHTML=(mode==='login'?'进入课间':mode==='register'?'创建我的账户':'创建管理员')+' <span>↗</span>';$('#consent-field').hidden=mode==='login';$('#forgot-password').hidden=mode!=='login';$('#register-recovery-hint').hidden=mode!=='register';$('#setup-field').hidden=mode!=='setup';$('#auth-error').textContent='';$('#auth-form [name=password]').autocomplete=mode==='login'?'current-password':'new-password';$('#auth-form [name=password]').minLength=mode==='login'?0:10;$('#auth-form [name=password]').maxLength=256;if(changed)enterEffect($('.auth-box'),null,{duration:200});}
 async function refresh(force=false){
  if(polling)return;polling=true;
  try{const next=await api('/api/dashboard');const changed=JSON.stringify(next)!==JSON.stringify(data);data=next;if((changed||force)&&(!['INPUT','SELECT'].includes(document.activeElement?.tagName)||force)&&page!=='settings')render();if(page==='settings')updatePlatformStatuses();}
  finally{polling=false;}
 }
-function showWorkspace(){ $('#auth').hidden=true;$('#workspace').hidden=false;$('#loading').hidden=true;week=currentWeek();render();updateVersionBadge();if(!updateState)checkUpdates(false);}
+function showWorkspace(){ $('#auth').hidden=true;$('#workspace').hidden=false;$('#loading').hidden=true;week=currentWeek();render();updateVersionBadge();if(page==='subscriptions')loadWidgetStatus();if(!updateState)checkUpdates(false);}
 function pageHeading(eyebrow,title,description,action=''){return `<div class="page-heading"><div><span class="eyebrow">${eyebrow}</span><h1>${title}</h1><p>${description}</p></div>${action}</div>`;}
 function badge(state){return `<span class="badge ${esc(state||'idle')}">${stateNames[state]||'等待同步'}</span>`;}
 function sourceCard(kind){
@@ -96,8 +97,34 @@ function timetable(){
  return html+`</div></div><button type="button" class="lesson-create" data-action="new-lesson" aria-label="手动新建课程" aria-haspopup="dialog" aria-expanded="${editingLessonKey==='new'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><p class="help-note">课表以学校实际安排为准。单双周按源数据精确展开；实验按具体项目与周次保留。</p>`;
 }
 function subscriptionInstructions(){return `<section class="import-guide"><div class="section-title"><h2>把课表带到手机</h2><small>订阅会更新 · 文件导入为一次性副本</small></div><div class="import-grid"><article class="panel"><span class="eyebrow">01 / APPLE</span><h3>iPhone / iPad</h3><ol><li>复制上方需要的订阅地址，通常选择聚合课表。</li><li>打开“日历”App，进入“日历”列表，选择“添加日历” → “添加订阅日历”。</li><li>粘贴地址，按系统提示查找并完成订阅。不同系统版本按钮名称可能略有区别。</li></ol><p>Mac：在“日历”中选择“文件” → “新建日历订阅”，粘贴相同地址。</p><a class="about-link" href="https://support.apple.com/zh-cn/guide/iphone/iph3d1110d4/ios" target="_blank" rel="noopener noreferrer">Apple 官方说明 ↗</a></article><article class="panel"><span class="eyebrow">02 / ANDROID</span><h3>安卓</h3><ol><li>日历 App 支持“从网址订阅 / 网络日历”时，直接粘贴上方地址。</li><li>没有订阅入口时，可使用 ICSx⁵ 添加订阅地址，并设置刷新间隔。</li><li>允许日历权限后，在系统日历或常用日历 App 中勾选这份订阅；需要时允许后台同步。</li></ol><p>打开下载的 .ics 文件导入，只保存当时的课表，不会持续更新。</p><a class="about-link" href="https://icsx5.bitfire.at/" target="_blank" rel="noopener noreferrer">ICSx⁵ 官方说明 ↗</a></article></div><p class="help-note">手机须能访问订阅地址。局域网地址需要连接同一网络；仅导入文件不具备订阅更新能力。已订阅聚合课表时，无需再订阅教学与实验，避免重复显示。</p></section>`;}
-function subscriptions(){return pageHeading('CALENDARS THAT STAY WITH YOU','订阅你的日常。','选择订阅方式，将课程安排放进常用日历。')+`<div class="subscription-tabs" role="tablist" aria-label="日历订阅方式"><button id="ics-tab" role="tab" aria-controls="ics-panel" aria-selected="${subscriptionTab==='ics'}" tabindex="${subscriptionTab==='ics'?0:-1}" data-subscription-tab="ics">ICS 订阅</button><button id="caldav-tab" role="tab" aria-controls="caldav-panel" aria-selected="${subscriptionTab==='caldav'}" tabindex="${subscriptionTab==='caldav'?0:-1}" data-subscription-tab="caldav">CalDAV 订阅</button></div><section id="ics-panel" role="tabpanel" aria-labelledby="ics-tab" ${subscriptionTab==='ics'?'':'hidden'}>${icsSubscriptions()}${subscriptionInstructions()}</section><section id="caldav-panel" role="tabpanel" aria-labelledby="caldav-tab" ${subscriptionTab==='caldav'?'':'hidden'}><div class="caldav-placeholder panel">${icon('clock')}<span class="eyebrow">CALDAV</span><h2>正在开发，敬请期待。</h2><p>目前可使用 ICS 订阅课表。</p></div></section>`;}
+function subscriptions(){return pageHeading('CALENDARS THAT STAY WITH YOU','订阅你的日常。','选择订阅方式，将课程安排放进常用日历。')+`<div class="subscription-tabs" role="tablist" aria-label="日历订阅方式"><button id="ics-tab" role="tab" aria-controls="ics-panel" aria-selected="${subscriptionTab==='ics'}" tabindex="${subscriptionTab==='ics'?0:-1}" data-subscription-tab="ics">ICS 订阅</button><button id="caldav-tab" role="tab" aria-controls="caldav-panel" aria-selected="${subscriptionTab==='caldav'}" tabindex="${subscriptionTab==='caldav'?0:-1}" data-subscription-tab="caldav">CalDAV 订阅</button></div><section id="ics-panel" role="tabpanel" aria-labelledby="ics-tab" ${subscriptionTab==='ics'?'':'hidden'}>${icsSubscriptions()}<section id="widget-token-panel" aria-label="小组件 Token 管理" aria-live="polite">${widgetTokenCard()}</section>${subscriptionInstructions()}</section><section id="caldav-panel" role="tabpanel" aria-labelledby="caldav-tab" ${subscriptionTab==='caldav'?'':'hidden'}><div class="caldav-placeholder panel">${icon('clock')}<span class="eyebrow">CALDAV</span><h2>正在开发，敬请期待。</h2><p>目前可使用 ICS 订阅课表。</p></div></section>`;}
 function icsSubscriptions(){return `<div class="subscription-grid">${['combined','teaching','lab'].map((kind,i)=>{const cal=data.calendars[kind];return `<article class="subscription-card"><div><span class="eyebrow">0${i+1} / ${{combined:'TOGETHER',teaching:'TEACHING',lab:'LABORATORY'}[kind]}</span><h2>${kindNames[kind]}</h2><p>${cal?cal.occurrences+' 课次 · '+fmt(cal.updated_at,true):'首次同步成功后可用'}</p></div><div><div class="subscription-link">${esc(data.links[kind])}</div><div class="subscription-actions"><div><button class="button small primary" data-action="copy-link" data-kind="${kind}" ${cal?'':'disabled'}>${icon('copy')}复制订阅地址</button><a class="button small" ${cal?`href="${esc(data.links[kind])}" download="${kind}.ics"`:'aria-disabled="true"'}>${icon('download')}下载 .ics</a></div><button class="text-button" data-action="rotate-link" data-kind="${kind}">更换私密链接</button></div></div></article>`}).join('')}</div><div class="help-note">添加方式：在日历应用中选择“添加订阅日历”，粘贴链接。订阅会读取最新成功版本；下载文件后导入属于一次性副本。<br>学校自动同步由本服务执行，日历客户端何时刷新由客户端决定。链接持有者可读取课表，请只保留在自己的设备中。</div>`;}
+function widgetTokenCard(){
+ const status=widgetStatus,disabled=widgetBusy||!status;
+ return `<article class="subscription-card widget-token-card"><div><span class="eyebrow">WIDGET / READ ONLY</span><h2>小组件 Token</h2><p>${widgetBusy?'正在处理…':widgetError?esc(widgetError):status?.configured?'已启用 · '+fmt(status.createdAt,true):status?'尚未生成':'正在读取状态…'}</p></div><div><p class="widget-token-description">读取已保存的教学与实验课表，适用于桌面小组件。长期有效，服务重启后可继续使用。</p><div class="subscription-link">/api/widget/v1/timetable?days=3&amp;offset=0</div><div class="subscription-actions"><div><button class="button small primary" data-action="widget-generate" ${disabled?'disabled':''}>${icon('lock')}${status?.configured?'更换 Token':'生成 Token'}</button>${status?.configured?`<button class="button small danger" data-action="widget-revoke" ${widgetBusy?'disabled':''}>撤销 Token</button>`:''}${widgetError?'<button class="button small" data-action="widget-retry">重试</button>':''}</div><small>仅限本账户 · 课表只读</small></div><p class="help-note">Token 只在生成时显示一次，请妥善保存。更换或撤销后，旧 Token 立即失效；日历订阅链接独立保留。</p></div></article>`;
+}
+function updateWidgetCard(){const panel=$('#widget-token-panel');if(panel)panel.innerHTML=widgetTokenCard();}
+async function loadWidgetStatus(){
+ const request=++widgetRequest,owner=data?.user.id;widgetStatus=null;widgetError='';widgetBusy=true;updateWidgetCard();
+ try{const status=await api('/api/widget/token');if(request===widgetRequest&&data?.user.id===owner)widgetStatus=status;}
+ catch(error){if(request===widgetRequest&&data?.user.id===owner)widgetError=error.message;}
+ finally{if(request===widgetRequest){widgetBusy=false;updateWidgetCard();}}
+}
+async function changeWidgetToken(action){
+ if(widgetBusy)return;
+ const request=++widgetRequest,owner=data?.user.id;widgetBusy=true;updateWidgetCard();
+ try{
+  const result=await api('/api/widget/token',{method:'POST',body:JSON.stringify({action})});
+  if(request!==widgetRequest||data?.user.id!==owner)return;
+  widgetError='';
+  if(action==='rotate'){
+   widgetStatus={configured:true,createdAt:result.createdAt};
+   modal('保存你的小组件 Token','<p>仅本次显示。请复制到小组件的安全存储中；关闭后无法再次查看。</p><label class="form-stack">Token<textarea id="widget-token-secret" class="widget-token-secret" rows="2" readonly spellcheck="false" autocomplete="off" aria-label="新生成的小组件 Token"></textarea></label>','<button class="button primary" data-action="widget-copy">'+icon('copy')+'复制 Token</button>');
+   $('#widget-token-secret').value=result.token;
+  }else{widgetStatus={configured:false};$('#modal').close();toast('小组件 Token 已撤销');}
+ }finally{if(request===widgetRequest){widgetBusy=false;updateWidgetCard();}}
+}
+function clearWidgetSecret(){const secret=$('#widget-token-secret');if(secret){secret.value='';secret.remove();}}
 function logs(){
  const rows=data.logs.filter(r=>logFilter==='all'||r.category===logFilter);
  return pageHeading('A RECORD OF EVERY UPDATE','每一次同步，都有记录。','学校平台的登录与拉取记录独立显示，和日历客户端访问区分开。')+filters(logFilter,'log-filter',[['school','学校平台拉取'],['sync','转换与同步'],['delivery','日历订阅访问'],['all','全部记录']])+`<div class="log-list">${rows.map(r=>`<div class="log-row ${r.level==='error'?'error':''}"><div class="log-time">${fmt(r.created_at)}</div><div class="log-event"><span class="log-dot ${r.level}"></span>${esc(kindNames[r.kind]||r.kind)}</div><div>${esc(r.message)}</div></div>`).join('')||'<div class="empty">'+(logFilter==='school'?'尚未向学校平台发起拉取。手动同步或自动任务开始后，记录会出现在这里。':'这个分类还没有记录。')+'</div>'}</div>`;
@@ -201,7 +228,7 @@ function render(){
  $('#account-name').textContent=data.user.student_name||data.user.username;renderAvatar();$('#account-role').textContent=data.user.role==='admin'?'管理员 / ADMIN':'普通用户 / MEMBER';$('#admin-nav').hidden=data.user.role!=='admin';$('#page-label').textContent=labels[page];$$('[data-page]').forEach(el=>el.classList.toggle('active',el.dataset.page===page));$('#top-date').textContent=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'long',day:'numeric',weekday:'short'}).format(new Date());
  $('#content').innerHTML=({overview,timetable,subscriptions,logs,settings,debug,admin}[page]||overview)();enterPage();document.dispatchEvent?.(new Event('koma:render'));
 }
-async function navigate(next){page=next;if(next==='admin'){adminUsers=(await api('/api/admin/users')).users;}render();window.scrollTo({top:0,behavior:'instant'});}
+async function navigate(next){page=next;if(next==='admin'){adminUsers=(await api('/api/admin/users')).users;}render();window.scrollTo({top:0,behavior:'instant'});if(next==='subscriptions')await loadWidgetStatus();}
 function arrangementDetails(row){
  return `<dl class="arrangement-details"><dt>课程</dt><dd>${esc(row.name)}</dd><dt>时间</dt><dd>${esc(row.date)} ${esc(row.startLocal?.slice(11,16))}–${esc(row.endLocal?.slice(11,16))}</dd><dt>地点</dt><dd>${esc(row.location||'未填写')}</dd><dt>教师</dt><dd>${esc(row.teacher||'未填写')}</dd>${row.projectName?`<dt>实验项目</dt><dd>${esc(row.projectName)}</dd>`:''}</dl>`;
 }
@@ -255,7 +282,7 @@ function recoveryReset(username,questions){
  modal('回答密保，重新登录。',`<form id="recovery-reset-form" class="form-stack recovery-form"><p class="panel-description">两道答案都需正确。成功后，所有旧登录会话将退出。</p><label>账户名<input name="username" value="${esc(username)}" readonly autocomplete="username"></label>${fields}<div class="recovery-divider"></div><label>新站内密码<input name="new_password" type="password" autocomplete="new-password" minlength="10" maxlength="256" placeholder="至少10个字符" required></label><label>再次输入新密码<input name="confirm_password" type="password" autocomplete="new-password" minlength="10" maxlength="256" required></label><p id="recovery-error" class="form-error" role="alert"></p><button class="button primary" type="submit">验证并重设密码</button><button type="button" class="text-button recovery-back" data-action="forgot-password">返回修改账户名</button></form>`);
 }
 async function sync(scope,initialize=false){await api('/api/sync',{method:'POST',body:JSON.stringify({scope,initialize_app:initialize,ack_app_relogin:initialize})});toast('已开始向学校平台同步课表');await refresh(true);}
-async function copy(text){if(navigator.clipboard)await navigator.clipboard.writeText(text);else{const field=document.createElement('textarea');field.value=text;document.body.append(field);field.select();document.execCommand('copy');field.remove();}toast('订阅地址已复制');}
+async function copy(text,message='订阅地址已复制'){if(navigator.clipboard)await navigator.clipboard.writeText(text);else{const field=document.createElement('textarea');field.value=text;document.body.append(field);field.select();document.execCommand('copy');field.remove();}toast(message);}
 document.addEventListener('click',async event=>{
  const target=event.target.closest('[data-action],[data-page],[data-auth],[data-kind-filter],[data-log-filter],[data-subscription-tab]');if(!target)return;
  try{
@@ -266,6 +293,15 @@ document.addEventListener('click',async event=>{
   if(target.dataset.kindFilter){kindFilter=target.dataset.kindFilter;return render();}
   if(target.dataset.logFilter){logFilter=target.dataset.logFilter;return render();}
   const action=target.dataset.action;
+  if(action==='widget-retry')return await loadWidgetStatus();
+  if(action==='widget-copy'){const secret=$('#widget-token-secret');if(secret)return await copy(secret.value,'Token 已复制，请妥善保存');return;}
+  if(action==='widget-generate'){
+   if(widgetBusy||!widgetStatus)return;
+   if(!widgetStatus.configured)return await changeWidgetToken('rotate');
+   return modal('更换小组件 Token？','<p>旧 Token 会立即失效。使用该 Token 的所有小组件都需要更新。</p>','<button class="button danger" data-action="widget-confirm-rotate">更换 Token</button>');
+  }
+  if(action==='widget-revoke')return modal('撤销小组件 Token？','<p>小组件将无法继续读取课表。需要时可重新生成 Token。</p>','<button class="button danger" data-action="widget-confirm-revoke">撤销 Token</button>');
+  if(action==='widget-confirm-rotate'||action==='widget-confirm-revoke')return await changeWidgetToken(action==='widget-confirm-rotate'?'rotate':'revoke');
   if(action==='change-avatar')return avatarEditor();
   if(action==='reset-avatar'){await api('/api/account/avatar',{method:'PUT',body:JSON.stringify({image:null})});$('#modal').close();await refresh();renderAvatar();return toast('已恢复默认头像');}
   if(action==='forgot-password')return forgotPassword();
@@ -371,3 +407,5 @@ setInterval(()=>{if(data&&!document.hidden)refresh().catch(()=>{});},4000);
 boot();
 
 document.addEventListener('keydown',event=>{if(!event.target.matches('[data-subscription-tab]')||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?'ics':event.key==='End'?'caldav':event.target.dataset.subscriptionTab==='ics'?'caldav':'ics';$('[data-subscription-tab="'+next+'"]').click();});
+
+document.addEventListener('close',event=>{if(event.target.id==='modal')clearWidgetSecret();},true);

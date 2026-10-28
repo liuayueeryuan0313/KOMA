@@ -177,6 +177,13 @@ svg.icon{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;s
 .subscription-actions{display:flex;justify-content:space-between;align-items:center;margin-top:13px;gap:10px;flex-wrap:wrap}
 .subscription-actions>div{display:flex;gap:7px}
 .subscription-actions .text-button{color:#9b8772;font-size:9px}
+.widget-token-card{margin-top:24px;min-width:0}
+.widget-token-card>div{min-width:0}
+.widget-token-description{margin:0 0 12px!important;font-size:12px!important;line-height:1.8}
+.widget-token-card .subscription-actions>div{flex-wrap:wrap}
+.widget-token-card .subscription-actions small{font-size:10px;color:var(--muted)}
+.widget-token-card .help-note{margin-bottom:0}
+.widget-token-secret{width:100%;box-sizing:border-box;resize:none;overflow-wrap:anywhere;font:12px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;user-select:all}
 .help-note{font-size:10px;color:#8b9282;line-height:2.1;padding:15px 0}
 .settings-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:20px;align-items:start}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:25px}

@@ -4,7 +4,7 @@ import os
 from datetime import datetime,timezone
 from pathlib import Path
 
-VERSION='0.4.2'
+VERSION='0.4.3'
 BUILD_INFO_PATH=Path(__file__).resolve().parents[1]/'build-info.json'
 
 
